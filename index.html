@@ -25,6 +25,10 @@
     return null;
   }
   let grades = readCfg() || JSON.parse(JSON.stringify(DEFAULTS));
+  // on the GitHub site the admin page writes config.json; use it when it is there
+  fetch("config.json", {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(c => {
+    if (c && Array.isArray(c.grades) && c.grades.every(g => g && (g.id === "L" || g.id === "W") && Array.isArray(g.items)) && c.grades.some(g => g.rate > 0)) grades = c.grades;
+  }).catch(() => {});
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
   let total = load("gacha2.total", 0);
   let soundOn = load("gacha2.sound", true);

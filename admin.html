@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>잭팟 관리자</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Bungee&family=IBM+Plex+Sans+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --void:#0E0E10; --panel:#18181B; --panel2:#202125; --line:#33353B; --steel:#45484F;
+  --text:#EFEBE2; --muted:#9C9FA6; --red:#E1242C; --red-dk:#8F1219; --gold:#F2C14E; --ok:#5BC48A;
+  --display:"Black Han Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --arcade:"Bungee","Black Han Sans",sans-serif;
+  --body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{background:var(--void)}
+body{margin:0;min-height:100dvh;color:var(--text);font-family:var(--body);font-size:16px;line-height:1.5;
+  background:radial-gradient(rgba(255,255,255,.06) 1.1px,transparent 1.6px) 0 0/7px 7px,var(--void)}
+main{max-width:520px;margin:0 auto;padding:24px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+h1{margin:0;font-family:var(--arcade);font-weight:400;font-size:26px;letter-spacing:.03em;color:var(--text);
+  -webkit-text-stroke:1.5px #0B0B0D;paint-order:stroke fill;text-shadow:2px 2px 0 var(--red)}
+h1 small{display:block;font-family:var(--display);font-size:14px;letter-spacing:0;color:var(--muted);text-shadow:none;-webkit-text-stroke:0}
+a{color:var(--text);text-underline-offset:3px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 4px;font-family:var(--display);font-weight:400;font-size:20px}
+.hint{margin:0 0 12px;color:var(--muted);font-size:14px}
+label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=password],input[type=number]{width:100%;font:inherit;color:var(--text);background:var(--void);
+  border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+input:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.row{display:flex;gap:8px;align-items:center}
+.row > *{flex:1}
+.btn{flex:none;font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.btn.big{width:100%;padding:13px;font-family:var(--display);font-weight:400;font-size:19px;box-shadow:0 5px 0 var(--red-dk)}
+.btn.big:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 var(--red-dk)}
+.status{min-height:1.5em;margin:10px 0 0;font-size:14px;color:var(--muted)}
+.status.ok{color:var(--ok)} .status.err{color:#FF6B70}
+.locked{opacity:.4;pointer-events:none}
+
+.grade{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;background:var(--panel2)}
+.grade .head{display:flex;align-items:center;gap:10px}
+.badge{font-family:var(--display);font-size:14px;padding:2px 10px;border-radius:4px}
+.badge.L{background:#3A3C42;color:#C9CDD3}
+.badge.W{background:var(--gold);color:#1A1406}
+.rate{display:flex;align-items:center;gap:8px;margin:0 0 0 auto;white-space:nowrap;flex:none}
+.rate input{width:90px;text-align:right}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--void);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 12px;font-size:14px}
+.chip button{border:0;background:none;color:var(--muted);font-size:16px;line-height:1;width:24px;height:24px;border-radius:50%;cursor:pointer}
+.chip button:hover{color:var(--text);background:var(--line)}
+.chips .none{color:var(--muted);font-size:14px}
+
+.odds{display:flex;align-items:baseline;gap:10px;margin-top:14px;padding:12px;border-radius:10px;background:var(--void);border:1px solid var(--line)}
+.odds b{font-family:var(--arcade);font-weight:400;font-size:30px;color:var(--gold)}
+.odds span{color:var(--muted);font-size:14px}
+.bar{height:8px;border-radius:4px;background:#3A3C42;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--gold);width:0}
+ol{margin:6px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
+ol li{margin:3px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>JACKPOT<small>관리자</small></h1>
+    <a href="./" target="_blank" rel="noopener">게임 열기</a>
+  </header>
+
+  <section class="card" id="loginCard">
+    <h2>로그인</h2>
+    <p class="hint">GitHub 토큰으로 이 저장소에 저장할 수 있는 사람만 설정을 바꿀 수 있어요. 토큰은 이 브라우저에만 저장돼요.</p>
+    <label for="token">GitHub 토큰</label>
+    <div class="row">
+      <input type="password" id="token" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      <button class="btn primary" id="loginBtn">연결</button>
+    </div>
+    <p class="status" id="loginStatus"></p>
+    <details id="howto">
+      <summary class="hint" style="cursor:pointer;margin:6px 0 0">토큰 만드는 법</summary>
+      <ol>
+        <li>GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token</li>
+        <li>Repository access: <b>Only select repositories</b> → 이 게임 저장소 선택</li>
+        <li>Permissions → Repository permissions → <b>Contents: Read and write</b></li>
+        <li>만든 토큰을 복사해서 위에 붙여넣기</li>
+      </ol>
+    </details>
+  </section>
+
+  <section class="card locked" id="setCard">
+    <h2>확률·상품</h2>
+    <p class="hint">숫자는 비율이에요. 합계가 100이 아니어도 비율대로 나눠 뽑아요. 당첨 상품을 여러 개 넣으면 당첨될 때 그중 하나가 무작위로 나와요.</p>
+    <div id="grades"></div>
+    <div class="odds">
+      <b id="winPct">–</b><span id="winText">당첨 확률</span>
+    </div>
+    <div class="bar"><i id="winBar"></i></div>
+    <p class="status" id="saveStatus"></p>
+    <button class="btn primary big" id="saveBtn" disabled>저장하기</button>
+  </section>
+
+  <p class="hint" style="text-align:center">저장하면 1~2분 뒤 게임 사이트에 반영돼요.</p>
+</main>
+
+<script>
+(function(){
+  // the game repo: taken from the GitHub Pages address (owner.github.io/repo/), editable below if needed
+  const host = location.hostname, path = location.pathname.split("/").filter(Boolean);
+  const OWNER = host.endsWith(".github.io") ? host.split(".")[0] : "advanceozeta-debug";
+  const REPO  = host.endsWith(".github.io") && path.length && !path[0].endsWith(".html") ? decodeURIComponent(path[0]) : "-";
+  const FILE = "config.json", BRANCH = "main";
+  const API = `https://api.github.com/repos/${OWNER}/${encodeURIComponent(REPO)}/contents/${FILE}`;
+  const LABEL = {L:"꽝", W:"당첨"};
+  const DEFAULT = {grades:[{id:"L", rate:87, items:["꽝"]}, {id:"W", rate:3, items:["당첨"]}]};
+
+  const $ = id => document.getElementById(id);
+  const store = { get(){ try { return localStorage.getItem("jackpot.admin.token") || ""; } catch(e){ return ""; } },
+                  set(v){ try { v ? localStorage.setItem("jackpot.admin.token", v) : localStorage.removeItem("jackpot.admin.token"); } catch(e){} } };
+  let token = "", sha = null, cfg = null;
+
+  // UTF-8 safe base64
+  const b64enc = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+  const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), c => c.charCodeAt(0)));
+
+  async function gh(method, url, body){
+    const r = await fetch(url, { method, cache:"no-store",
+      headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch(e){}
+    return { ok: r.ok, status: r.status, data };
+  }
+  function setStatus(el, text, kind){ el.textContent = text; el.className = "status" + (kind ? " " + kind : ""); }
+
+  async function connect(){
+    token = $("token").value.trim();
+    if (!token){ setStatus($("loginStatus"), "토큰을 붙여넣어 주세요.", "err"); return; }
+    $("loginBtn").disabled = true; setStatus($("loginStatus"), "확인 중…");
+    // can this token write to the repo?
+    const repo = await gh("GET", `https://api.github.com/repos/${OWNER}/${encodeURIComponent(REPO)}`);
+    if (!repo.ok){
+      $("loginBtn").disabled = false;
+      setStatus($("loginStatus"), repo.status === 401 ? "토큰이 올바르지 않아요. 다시 확인해 주세요." : "이 토큰으로는 게임 저장소에 접근할 수 없어요.", "err");
+      return;
+    }
+    if (repo.data && repo.data.permissions && !repo.data.permissions.push){
+      $("loginBtn").disabled = false;
+      setStatus($("loginStatus"), "이 토큰에는 저장 권한이 없어요. Contents: Read and write로 만들어 주세요.", "err");
+      return;
+    }
+    store.set(token);
+    const f = await gh("GET", API + "?ref=" + BRANCH);
+    if (f.ok){ sha = f.data.sha; try { cfg = JSON.parse(b64dec(f.data.content)); } catch(e){ cfg = null; } }
+    else if (f.status === 404){ sha = null; cfg = null; }
+    else { $("loginBtn").disabled = false; setStatus($("loginStatus"), "설정을 불러오지 못했어요. (" + f.status + ")", "err"); return; }
+    if (!cfg || !Array.isArray(cfg.grades)) cfg = JSON.parse(JSON.stringify(DEFAULT));
+    for (const id of ["L","W"]) if (!cfg.grades.find(g => g.id === id)) cfg.grades.push({id, rate: id === "L" ? 87 : 3, items:[LABEL[id]]});
+    $("loginBtn").textContent = "연결됨"; $("token").disabled = true;
+    setStatus($("loginStatus"), `${OWNER}/${REPO} 저장소에 연결했어요.`, "ok");
+    $("setCard").classList.remove("locked"); $("saveBtn").disabled = false;
+    $("howto").open = false;
+    render();
+  }
+
+  function render(){
+    const box = $("grades"); box.innerHTML = "";
+    for (const g of ["L","W"].map(id => cfg.grades.find(x => x.id === id))){
+      const el = document.createElement("div"); el.className = "grade";
+      el.innerHTML = `<div class="head"><span class="badge ${g.id}"></span>
+        <label class="rate">비율 <input type="number" min="0" step="0.1" inputmode="decimal"></label></div>
+        <div class="chips"></div>
+        <div class="row"><input type="text" placeholder="${g.id === "W" ? "상품 이름 (예: 치킨 쿠폰)" : "꽝 문구 (예: 다음 기회에)"}"><button class="btn" type="button">추가</button></div>`;
+      el.querySelector(".badge").textContent = LABEL[g.id];
+      const num = el.querySelector(".rate input"); num.value = g.rate;
+      num.addEventListener("input", () => { const v = parseFloat(num.value); g.rate = isFinite(v) && v > 0 ? v : 0; odds(); });
+      const chips = el.querySelector(".chips");
+      const drawChips = () => {
+        chips.innerHTML = "";
+        if (!g.items.length){ const n = document.createElement("span"); n.className = "none"; n.textContent = "비어 있으면 '" + LABEL[g.id] + "'으로 표시돼요"; chips.appendChild(n); }
+        g.items.forEach((it, i) => {
+          const c = document.createElement("span"); c.className = "chip"; c.textContent = it;
+          const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", it + " 삭제");
+          x.onclick = () => { g.items.splice(i, 1); drawChips(); };
+          c.appendChild(x); chips.appendChild(c);
+        });
+      };
+      const add = el.querySelector(".row input"), addBtn = el.querySelector(".row .btn");
+      const doAdd = () => { const v = add.value.trim(); if (!v) return; v.split(",").map(s => s.trim()).filter(Boolean).forEach(s => g.items.push(s)); add.value = ""; drawChips(); add.focus(); };
+      addBtn.onclick = doAdd; add.addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); doAdd(); } });
+      drawChips(); box.appendChild(el);
+    }
+    odds();
+  }
+
+  function odds(){
+    const L = cfg.grades.find(g => g.id === "L").rate, W = cfg.grades.find(g => g.id === "W").rate;
+    const sum = L + W, p = sum ? W / sum * 100 : 0;
+    $("winPct").textContent = (p < 10 ? p.toFixed(1) : Math.round(p)) + "%";
+    $("winText").textContent = sum ? `당첨 확률 · 약 ${p > 0 ? Math.round(100 / p) : "∞"}번에 1번` : "비율을 하나 이상 넣어 주세요";
+    $("winBar").style.width = Math.min(100, p) + "%";
+  }
+
+  async function saveCfg(){
+    const btn = $("saveBtn"), st = $("saveStatus");
+    if (!cfg.grades.some(g => g.rate > 0)){ setStatus(st, "비율이 0보다 큰 등급이 하나 이상 필요해요.", "err"); return; }
+    const out = {grades: ["L","W"].map(id => { const g = cfg.grades.find(x => x.id === id); return {id, rate: g.rate, items: g.items.length ? g.items : [LABEL[id]]}; })};
+    btn.disabled = true; btn.textContent = "저장 중…"; setStatus(st, "");
+    const body = { message: "Update jackpot settings from admin page", content: b64enc(JSON.stringify(out, null, 2) + "\n"), branch: BRANCH };
+    if (sha) body.sha = sha;
+    let r = await gh("PUT", API, body);
+    if (r.status === 409 || r.status === 422){       // someone saved in between: take the newest sha and try once more
+      const f = await gh("GET", API + "?ref=" + BRANCH);
+      if (f.ok){ body.sha = f.data.sha; r = await gh("PUT", API, body); }
+    }
+    btn.disabled = false; btn.textContent = "저장하기";
+    if (r.ok){ sha = r.data.content.sha; cfg = out; render(); setStatus(st, "저장했어요. 1~2분 뒤 게임에 반영돼요.", "ok"); }
+    else if (r.status === 401 || r.status === 403){ setStatus(st, "저장 권한이 없어요. 토큰 권한을 확인해 주세요.", "err"); }
+    else setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요. (" + r.status + ")", "err");
+  }
+
+  $("loginBtn").onclick = connect;
+  $("token").addEventListener("keydown", e => { if (e.key === "Enter") connect(); });
+  $("saveBtn").onclick = saveCfg;
+  const saved = store.get();
+  if (saved){ $("token").value = saved; connect(); } else { $("howto").open = true; }
+})();
+</script>
+</body>
+</html>
