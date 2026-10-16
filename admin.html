@@ -121,20 +121,6 @@ ol.steps li{margin:8px 0}
     </details>
   </section>
 
-  <section class="card locked" id="setCard">
-    <h2>확률·상품</h2>
-    <p class="hint">숫자는 비율이에요. 합계가 100이 아니어도 비율대로 나눠 뽑아요. 당첨 상품을 여러 개 넣으면 당첨될 때 그중 하나가 무작위로 나와요.</p>
-    <div id="grades"></div>
-    <div class="odds">
-      <b id="winPct">–</b><span id="winText">당첨 확률</span>
-    </div>
-    <div class="bar"><i id="winBar"></i></div>
-    <p class="status" id="saveStatus"></p>
-    <button class="btn primary big" id="saveBtn" disabled>저장하기</button>
-  </section>
-
-  <p class="hint" style="text-align:center">저장하면 1~2분 뒤 게임 사이트에 반영돼요.</p>
-
   <section class="card locked" id="logCard">
     <h2>뽑기 기록</h2>
 
@@ -177,6 +163,21 @@ ol.steps li{margin:8px 0}
       <p class="hint" style="margin-top:8px">최근 300번까지 보여요. 전체 기록은 구글 시트의 '기록' 탭에 있어요. 30초마다 자동으로 새로고침돼요.</p>
     </div>
   </section>
+
+  <section class="card locked" id="setCard">
+    <h2>확률·상품</h2>
+    <p class="hint">숫자는 비율이에요. 합계가 100이 아니어도 비율대로 나눠 뽑아요. 당첨 상품을 여러 개 넣으면 당첨될 때 그중 하나가 무작위로 나와요.</p>
+    <div id="grades"></div>
+    <div class="odds">
+      <b id="winPct">–</b><span id="winText">당첨 확률</span>
+    </div>
+    <div class="bar"><i id="winBar"></i></div>
+    <p class="status" id="saveStatus"></p>
+    <button class="btn primary big" id="saveBtn" disabled>저장하기</button>
+  </section>
+
+  <p class="hint" style="text-align:center">저장하면 1~2분 뒤 게임 사이트에 반영돼요.</p>
+
 </main>
 
 <script type="text/plain" id="gsSrc">// 잭팟 머신 뽑기 기록 — Google Apps Script
