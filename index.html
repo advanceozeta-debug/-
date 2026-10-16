@@ -201,6 +201,11 @@ h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 10px}
 .snd svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .snd .spk{fill:currentColor}
 .snd .off{display:none}
+.snd{position:fixed}
+#syncDot{position:absolute;right:1px;top:1px;width:9px;height:9px;border-radius:50%;background:transparent;pointer-events:none}
+#syncDot[data-state="ok"]{background:#5BC48A}
+#syncDot[data-state="busy"]{background:#F2C14E}
+#syncDot[data-state="err"]{background:#FF5A5F}
 .snd[aria-pressed="false"] .on{display:none}
 .snd[aria-pressed="false"] .off{display:inline}
 
@@ -244,7 +249,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     <button class="pull" id="pull" aria-label="돌리기"></button>
   </div>
 
-  <button class="snd" id="sound" aria-pressed="true" aria-label="소리 끄기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
+  <button class="snd" id="sound" aria-pressed="true" aria-label="소리 끄기"><i id="syncDot" data-state="off"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
 </main>
 
 <div class="fever" id="fever" hidden>
@@ -274,22 +279,81 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   // the admin site writes config.json next to this page
   fetch("config.json", {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(c => {
     if (c && Array.isArray(c.grades) && c.grades.every(g => g && (g.id === "L" || g.id === "W") && Array.isArray(g.items)) && c.grades.some(g => g.rate > 0)) grades = c.grades;
-    if (c && typeof c.logUrl === "string" && /^https:\/\/script\.google\.com\//.test(c.logUrl)) logUrl = c.logUrl;
   }).catch(() => {});
 
-  // every pull is reported to the admin's record sheet (if the admin set one up)
-  let logUrl = "";
+  // ---- play records: each booth device keeps its own log and copies it to the GitHub repo
+  // (branch "records", file logs/<device>.json). The repo key is given to the device once by
+  // scanning the QR on the admin page; it is kept only on this device, never in the page source.
   const playerId = (() => {
     let id = load("jackpot.player", null);
-    if (!id){ id = "P" + Math.random().toString(36).slice(2, 8).toUpperCase(); save("jackpot.player", id); }
+    if (!id){ id = "D" + Math.random().toString(36).slice(2, 7).toUpperCase(); save("jackpot.player", id); }
     return id;
   })();
+  (function takeKeyFromLink(){
+    const m = location.hash.match(/[#&]k=([^&]+)/);
+    if (!m) return;
+    try { localStorage.setItem("jackpot.devkey", decodeURIComponent(m[1])); } catch(e){}
+    window.history.replaceState(null, "", location.pathname + location.search);
+  })();
+  const devKey = () => { try { return localStorage.getItem("jackpot.devkey") || ""; } catch(e){ return ""; } };
+  const REPO = (() => {
+    const h = location.hostname, p = location.pathname.split("/").filter(Boolean);
+    if (!h.endsWith(".github.io")) return null;
+    return { owner: h.split(".")[0], repo: p.length && !p[0].includes(".") ? decodeURIComponent(p[0]) : h };
+  })();
+  let playLog = load("jackpot.log", []), dirty = load("jackpot.dirty", false), fileSha = null, syncing = false;
   function report(res, faces){
-    if (!logUrl) return;
-    const body = JSON.stringify({ r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "", id: playerId,
-      ua: /iPhone|iPad|Android|Mobile/.test(navigator.userAgent) ? "모바일" : "PC" });
-    try { fetch(logUrl, { method: "POST", mode: "no-cors", body, keepalive: true }); } catch(e){}
+    playLog.push({ t: Date.now(), r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "" });
+    save("jackpot.log", playLog); dirty = true; save("jackpot.dirty", true);
+    setTimeout(sync, 1500);
   }
+  const b64enc = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+  async function gh(method, path, body){
+    const r = await fetch("https://api.github.com/repos/" + REPO.owner + "/" + encodeURIComponent(REPO.repo) + path, {
+      method, cache: "no-store",
+      headers: { "Authorization": "Bearer " + devKey(), "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch(e){}
+    return { ok: r.ok, status: r.status, data };
+  }
+  async function ensureBranch(){
+    const b = await gh("GET", "/git/ref/heads/records");
+    if (b.ok) return true;
+    const m = await gh("GET", "/git/ref/heads/main");
+    if (!m.ok) return false;
+    const c = await gh("POST", "/git/refs", { ref: "refs/heads/records", sha: m.data.object.sha });
+    return c.ok || c.status === 422;
+  }
+  function setDot(state){ const d = document.getElementById("syncDot"); if (d) d.dataset.state = state; }
+  async function sync(){
+    if (!REPO || !devKey()){ setDot("off"); return; }
+    if (syncing || !dirty){ if (!dirty) setDot("ok"); return; }
+    syncing = true; setDot("busy");
+    const path = "/contents/logs/" + playerId + ".json";
+    try {
+      if (fileSha === null){
+        const g = await gh("GET", path + "?ref=records");
+        if (g.ok) fileSha = g.data.sha;
+        else if (g.status === 404){ fileSha = ""; if (!(await ensureBranch())) throw new Error("branch"); }
+        else throw new Error(String(g.status));
+      }
+      const snapshot = playLog.length;
+      const body = { message: "records " + playerId, branch: "records", content: b64enc(JSON.stringify({ device: playerId, rows: playLog })) };
+      if (fileSha) body.sha = fileSha;
+      let r = await gh("PUT", path, body);
+      if (r.status === 409 || r.status === 422){ fileSha = null; throw new Error("retry"); }
+      if (!r.ok) throw new Error(String(r.status));
+      fileSha = r.data.content.sha;
+      if (playLog.length === snapshot){ dirty = false; save("jackpot.dirty", false); }
+      setDot(dirty ? "busy" : "ok");
+    } catch(e){
+      setDot("err");
+    } finally { syncing = false; }
+  }
+  setInterval(sync, 20000);
+  addEventListener("online", sync);
+  setTimeout(sync, 800);
+
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
   let total = load("gacha2.total", 0);
   let soundOn = load("gacha2.sound", true);
