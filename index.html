@@ -95,6 +95,13 @@ main{position:absolute;z-index:1;left:50%;top:0;width:440px;padding:14px 16px 18
 @keyframes clunk{50%{transform:translateY(3px)}}
 
 .sym{height:var(--H);background:center/auto 94% no-repeat}
+/* number symbols (used while the character cards are switched off) */
+.nums .sym{background-image:none!important;display:grid;place-items:center}
+.glyph{font-family:var(--arcade);font-size:calc(var(--H) * .62);line-height:1;-webkit-text-stroke:3px #0B0B0D;paint-order:stroke fill;text-shadow:0 4px 0 #0B0B0D}
+.sym.n1 .glyph{color:#FF4D4D}.sym.n2 .glyph{color:#FF9F1C}.sym.n3 .glyph{color:#FFD43B}.sym.n4 .glyph{color:#51CF66}
+.sym.n5 .glyph{color:#4DABF7}.sym.n6 .glyph{color:#B197FC}.sym.n7 .glyph{color:#F783AC}
+.nums .fchar{background-image:none!important;display:grid;place-items:center;height:auto;filter:none}
+.nums .fchar .glyph{font-size:calc(var(--fw) * .7);-webkit-text-stroke:6px #0B0B0D;text-shadow:0 8px 0 #0B0B0D,0 0 40px rgba(242,193,78,.8)}
 /* wide screens: controls move beside the reels so the whole machine can grow */
 main.land{width:680px}
 main.land .marquee{margin:0 60px}
@@ -424,7 +431,10 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
   const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const badge = g => `<span class="badge ${g}" style="--g:var(--${g})">${LABEL[g]}</span>`;
-  const symHTML = n => `<div class="sym n${n}"></div>`;
+  // character cards are switched off for now; flip to true to bring them back
+  const USE_CARDS = false;
+  if (!USE_CARDS) document.documentElement.classList.add("nums");
+  const symHTML = n => USE_CARDS ? `<div class="sym n${n}"></div>` : `<div class="sym n${n}"><span class="glyph">${n}</span></div>`;
   const show = (g, name) => name === LABEL[g] ? LABEL[g] : `${LABEL[g]} ${name}`;
   const pick = a => a[Math.floor(Math.random()*a.length)];
   const pool = () => grades.filter(g => g.items.length && g.rate > 0);
@@ -730,7 +740,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   const SPIN_LINES = ["가라가라~!", "제발제발…!", "이번엔 느낌 와!"];
   let feverTimer = 0;
   function showFever(res, faces){
-    $("fchar").className = "fchar sym n" + faces[0];        // the winning card, big
+    $("fchar").className = "fchar sym n" + faces[0];        // the winning card (or number), big
+    $("fchar").innerHTML = USE_CARDS ? "" : `<span class="glyph">${faces[0]}</span>`;
     $("fsub").textContent = res.name === LABEL[res.g] ? "" : res.name;
     fever.hidden = false;
     clearTimeout(feverTimer); feverTimer = setTimeout(hideFever, 3600);
