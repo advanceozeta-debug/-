@@ -21,6 +21,7 @@
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:inherit}
+input,textarea,button,details *{box-sizing:border-box}
 html{background:var(--void)}
 body{margin:0;min-height:100dvh;color:var(--text);font-family:var(--body);font-size:16px;line-height:1.5;
   background:radial-gradient(rgba(255,255,255,.06) 1.1px,transparent 1.6px) 0 0/7px 7px,var(--void)}
@@ -2445,7 +2446,7 @@ var qrcode = function() {
       <ol class="steps">
         <li>게임을 돌릴 기기마다 한 번씩만 하면 돼요.</li>
         <li>아래에 <b>기기 연결 비밀번호</b>를 정하고 <b>QR 보기</b>를 눌러요. 게임 기기 카메라로 QR을 찍어 열고, 같은 비밀번호를 넣어요. (또는 링크를 복사해서 그 기기 크롬에서 열어요.)</li>
-        <li>게임 화면 오른쪽 아래 오른쪽 아래 구석에 <b style="color:var(--ok)">작은 초록 점</b>이 보이면 연결된 거예요. 노란 점은 올리는 중, 빨간 점은 인터넷 연결을 확인해 주세요.</li>
+        <li>게임 화면 오른쪽 아래 구석에 <b style="color:var(--ok)">작은 초록 점</b>이 보이면 연결된 거예요. 노란 점은 올리는 중, 빨간 점은 인터넷 연결을 확인해 주세요.</li>
       </ol>
       <p class="hint">QR 안의 저장소 열쇠는 비밀번호로 잠겨요. QR이 남에게 보여도 비밀번호를 모르면 쓸 수 없어요.</p>
       <label for="qrPass">기기 연결 비밀번호</label>
@@ -2453,9 +2454,14 @@ var qrcode = function() {
       <p class="status" id="qrStatus"></p>
       <div class="row" style="flex-wrap:wrap">
         <button class="btn" type="button" id="qrBtn">QR 보기</button>
-        <button class="btn" type="button" id="linkBtn">링크 복사</button>
+        <button class="btn" type="button" id="linkBtn">링크 보기·복사</button>
       </div>
       <div id="qr" hidden style="background:#fff;padding:12px;border-radius:10px;margin-top:10px;width:max-content"></div>
+      <div id="linkBox" hidden style="margin-top:10px">
+        <label for="linkOut">연결 링크</label>
+        <div class="row"><input type="text" id="linkOut" readonly spellcheck="false"><button class="btn" type="button" id="linkCopy2">복사</button></div>
+        <p class="hint" style="margin-top:6px">카톡 등으로 게임 기기에 보내서 크롬으로 열어도 돼요. 비밀번호 없이는 쓸 수 없어요.</p>
+      </div>
     </details>
   </section>
 
@@ -2684,19 +2690,28 @@ var qrcode = function() {
   }
   $("qrBtn").onclick = async () => {
     const box = $("qr");
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; $("qrBtn").textContent = "QR 보기"; return; }
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; $("linkBox").hidden = true; $("qrBtn").textContent = "QR 보기"; return; }
     const link = await deviceLink(); if (!link) return;
+    showLink(link);
     box.innerHTML = ""; box.hidden = false; $("qrBtn").textContent = "QR 숨기기";
     try {
       const q = qrcode(0, "L"); q.addData(link); q.make();
       box.innerHTML = q.createSvgTag({ cellSize: 5, margin: 2 });
     } catch(e){ box.style.color = "#000"; box.textContent = "QR을 만들지 못했어요. '링크 복사'를 써 주세요."; }
   };
+  function showLink(link){ $("linkOut").value = link; $("linkBox").hidden = false; }
+  $("linkOut").addEventListener("focus", e => e.target.select());
+  $("linkCopy2").onclick = async () => {
+    try { await navigator.clipboard.writeText($("linkOut").value); $("linkCopy2").textContent = "복사했어요"; }
+    catch(e){ $("linkOut").select(); }
+    setTimeout(() => $("linkCopy2").textContent = "복사", 2000);
+  };
   $("linkBtn").onclick = async () => {
     const link = await deviceLink(); if (!link) return;
+    showLink(link);
     try { await navigator.clipboard.writeText(link); $("linkBtn").textContent = "복사했어요"; }
     catch(e){ prompt("이 링크를 게임 기기에서 열어 주세요", link); }
-    setTimeout(() => $("linkBtn").textContent = "링크 복사", 2000);
+    setTimeout(() => $("linkBtn").textContent = "링크 보기·복사", 2000);
   };
 
   $("loginBtn").onclick = connect;
