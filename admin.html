@@ -2448,9 +2448,13 @@ var qrcode = function() {
         <li>아래에 <b>기기 연결 비밀번호</b>를 정하고 <b>QR 보기</b>를 눌러요. 게임 기기 카메라로 QR을 찍어 열고, 같은 비밀번호를 넣어요. (또는 링크를 복사해서 그 기기 크롬에서 열어요.)</li>
         <li>게임 화면 오른쪽 아래 구석에 <b style="color:var(--ok)">작은 초록 점</b>이 보이면 연결된 거예요. 노란 점은 올리는 중, 빨간 점은 인터넷 연결을 확인해 주세요.</li>
       </ol>
-      <p class="hint">QR 안의 저장소 열쇠는 비밀번호로 잠겨요. QR이 남에게 보여도 비밀번호를 모르면 쓸 수 없어요.</p>
+      <p class="hint">저장소 열쇠는 비밀번호로 잠겨서 기기에 저장돼요. 'QR에 비밀번호도 넣기'를 켜면 QR을 찍기만 해도 연결되고, 축제 날 아침에도 같은 QR을 다시 찍으면 바로 풀려요. 이 QR은 남에게 보여주지 마세요. 끄면 QR을 찍은 뒤 비밀번호를 직접 넣어야 해요.</p>
       <label for="qrPass">기기 연결 비밀번호</label>
       <input type="password" id="qrPass" autocomplete="new-password" placeholder="6자 이상, 남이 맞히기 어렵게">
+      <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin-top:10px">
+        <input type="checkbox" id="qrWithPass" checked style="width:20px;height:20px">
+        QR에 비밀번호도 넣기 (찍기만 하면 바로 연결)
+      </label>
       <p class="status" id="qrStatus"></p>
       <div class="row" style="flex-wrap:wrap">
         <button class="btn" type="button" id="qrBtn">QR 보기</button>
@@ -2686,7 +2690,9 @@ var qrcode = function() {
     const pass = $("qrPass").value;
     if (pass.length < 6){ setStatus($("qrStatus"), "비밀번호를 6자 이상 넣어 주세요.", "err"); $("qrPass").focus(); return null; }
     setStatus($("qrStatus"), "");
-    return GAME_URL + "#e=" + await lockKey(token, pass);
+    let link = GAME_URL + "#e=" + await lockKey(token, pass);
+    if ($("qrWithPass").checked) link += "&p=" + b64u(new TextEncoder().encode(pass));
+    return link;
   }
   $("qrBtn").onclick = async () => {
     const box = $("qr");

@@ -352,12 +352,23 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     inp.onkeydown = e => { if (e.key === "Enter") go(); };
     document.getElementById("pairNo").onclick = () => { box.hidden = true; setDot("off"); };
   }
-  function takeKeyFromLink(){
-    const m = location.hash.match(/[#&]e=([\w-]+)/);
+  async function takeKeyFromLink(){
+    const m = location.hash.match(/[#&]e=([\w-]+)/), pm = location.hash.match(/[#&]p=([\w-]+)/);
     if (location.hash) window.history.replaceState(null, "", location.pathname + location.search);
-    if (m) return askPassword(m[1], true);                                 // new pairing from the admin QR
     let saved = ""; try { saved = localStorage.getItem("jackpot.devkeyEnc") || ""; } catch(e){}
-    if (saved) askPassword(saved, false);                                  // already paired: unlock for this session
+    const payload = m ? m[1] : saved;
+    if (!payload) return;
+    if (pm){                                                               // QR that also carries the password: no typing
+      try {
+        const pass = new TextDecoder().decode(b64uDec(pm[1]));
+        memKey = await unlockKey(payload, pass);
+        if (m) try { localStorage.setItem("jackpot.devkeyEnc", payload); } catch(e){}
+        if (playLog.length) dirty = true;
+        document.getElementById("pair").hidden = true;
+        sync(); return;
+      } catch(e){ /* fall through to typing */ }
+    }
+    askPassword(payload, !!m);
   }
   const REPO = (() => {
     const h = location.hostname, p = location.pathname.split("/").filter(Boolean);
@@ -416,6 +427,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   setInterval(sync, 20000);
   addEventListener("online", sync);
   takeKeyFromLink();
+  addEventListener("hashchange", () => { if (/[#&]e=/.test(location.hash)) takeKeyFromLink(); });
   setTimeout(sync, 800);
 
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
