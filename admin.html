@@ -68,6 +68,29 @@ input:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-o
 .bar i{display:block;height:100%;background:var(--gold);width:0}
 ol{margin:6px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
 ol li{margin:3px 0}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 12px}
+.tile{background:var(--void);border:1px solid var(--line);border-radius:10px;padding:10px 8px;text-align:center}
+.tile b{display:block;font-family:var(--arcade);font-weight:400;font-size:22px;line-height:1.2}
+.tile span{font-size:12px;color:var(--muted)}
+.tile.gold b{color:var(--gold)}
+.loghead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.loghead .hint{margin:0}
+.filters{display:flex;gap:6px}
+.filters button{font:inherit;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--panel2);color:var(--text);border-color:var(--steel)}
+.log{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:60vh;overflow-y:auto}
+.log li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);font-size:14px}
+.log li:first-child{border-top:0}
+.log li.W{background:rgba(242,193,78,.08)}
+.log .faces{font-family:var(--arcade);font-size:15px;letter-spacing:.15em}
+.log .meta{color:var(--muted);font-size:12px;text-align:right;white-space:nowrap}
+.log .prize{color:var(--gold);font-size:13px}
+.log .empty{display:block;text-align:center;color:var(--muted);padding:18px}
+.code{width:100%;height:150px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--text);background:var(--void);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+ol.steps{color:var(--text)}
+ol.steps li{margin:8px 0}
+@media (max-width:420px){.tiles{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -111,8 +134,116 @@ ol li{margin:3px 0}
   </section>
 
   <p class="hint" style="text-align:center">저장하면 1~2분 뒤 게임 사이트에 반영돼요.</p>
+
+  <section class="card locked" id="logCard">
+    <h2>뽑기 기록</h2>
+
+    <div id="logSetup">
+      <p class="hint">모든 사람의 뽑기 결과를 내 구글 시트에 모아요. 처음 한 번만 연결하면 돼요.</p>
+      <ol class="steps">
+        <li><a href="https://sheets.new" target="_blank" rel="noopener">새 구글 시트</a>를 만들고, 메뉴에서 <b>확장 프로그램 → Apps Script</b>를 눌러요.</li>
+        <li>안에 있는 코드를 모두 지우고 아래 코드를 붙여넣어요. 맨 위 <b>ADMIN_KEY</b>를 나만 아는 비밀번호로 바꾸고 저장(💾)해요.
+          <textarea class="code" id="gsCode" readonly></textarea>
+          <button class="btn" type="button" id="copyGs">코드 복사</button></li>
+        <li>오른쪽 위 <b>배포 → 새 배포</b> → 유형 <b>웹 앱</b>. 다음 사용자로 실행: <b>나</b>, 액세스 권한: <b>모든 사용자</b> → 배포. 권한 허용 창이 뜨면 허용해요.</li>
+        <li>나온 <b>웹 앱 URL</b>과 1번에서 정한 비밀번호를 아래에 넣어요.</li>
+      </ol>
+    </div>
+
+    <label for="logUrl">기록 주소 (웹 앱 URL)</label>
+    <input type="text" id="logUrl" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="logKey">기록 비밀번호 (ADMIN_KEY)</label>
+    <div class="row">
+      <input type="password" id="logKey" autocomplete="off" spellcheck="false">
+      <button class="btn primary" type="button" id="logSave">연결</button>
+    </div>
+    <p class="status" id="logStatus"></p>
+
+    <div id="logView" hidden>
+      <div class="tiles">
+        <div class="tile"><b id="stTotal">–</b><span>전체</span></div>
+        <div class="tile gold"><b id="stWins">–</b><span>당첨</span></div>
+        <div class="tile"><b id="stRate">–</b><span>실제 당첨률</span></div>
+        <div class="tile"><b id="stToday">–</b><span>오늘</span></div>
+      </div>
+      <div class="loghead">
+        <div class="filters" role="group" aria-label="보기">
+          <button type="button" data-f="all" aria-pressed="true">전체</button>
+          <button type="button" data-f="W" aria-pressed="false">당첨만</button>
+        </div>
+        <button class="btn" type="button" id="logRefresh">새로고침</button>
+      </div>
+      <ul class="log" id="logList"></ul>
+      <p class="hint" style="margin-top:8px">최근 300번까지 보여요. 전체 기록은 구글 시트의 '기록' 탭에 있어요. 30초마다 자동으로 새로고침돼요.</p>
+    </div>
+  </section>
 </main>
 
+<script type="text/plain" id="gsSrc">// 잭팟 머신 뽑기 기록 — Google Apps Script
+// 1) 아래 ADMIN_KEY를 나만 아는 비밀번호로 바꾸세요. 관리자 사이트에서 기록을 볼 때 이 비밀번호를 넣어요.
+const ADMIN_KEY = "여기에-비밀번호";
+
+const SHEET = "기록";
+
+function sheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET);
+    sh.appendRow(["시간", "결과", "그림", "상품", "플레이어", "기기"]);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+// 게임이 한 번 돌릴 때마다 한 줄씩 저장
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const d = JSON.parse((e.postData && e.postData.contents) || "{}");
+    sheet_().appendRow([
+      new Date(),
+      d.r === "W" ? "당첨" : "꽝",
+      String(d.f || "").replace(/[^1-7]/g, "").slice(0, 3),
+      String(d.p || "").slice(0, 100),
+      String(d.id || "").slice(0, 20),
+      String(d.ua || "").slice(0, 10)
+    ]);
+  } finally {
+    lock.releaseLock();
+  }
+  return ContentService.createTextOutput("ok");
+}
+
+// 관리자 사이트가 기록을 읽어 감 (비밀번호가 맞을 때만)
+function doGet(e) {
+  if (!e.parameter.key || e.parameter.key !== ADMIN_KEY) return json_({ error: "key" });
+  const sh = sheet_();
+  const last = sh.getLastRow();
+  const total = Math.max(0, last - 1);
+  let wins = 0, today = 0;
+  const tz = Session.getScriptTimeZone();
+  const todayStr = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  if (total) {
+    const all = sh.getRange(2, 1, total, 2).getValues();
+    for (const [t, r] of all) {
+      if (r === "당첨") wins++;
+      if (Utilities.formatDate(new Date(t), tz, "yyyy-MM-dd") === todayStr) today++;
+    }
+  }
+  const limit = Math.min(Number(e.parameter.limit) || 300, 2000);
+  const n = Math.min(limit, total);
+  const rows = n ? sh.getRange(last - n + 1, 1, n, 6).getValues().reverse().map(r => ({
+    t: new Date(r[0]).toISOString(), r: r[1], f: String(r[2]), p: r[3], id: r[4], ua: r[5]
+  })) : [];
+  return json_({ total, wins, today, rows });
+}
+
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+</script>
 <script>
 (function(){
   // the game repo: taken from the GitHub Pages address (owner.github.io/repo/), editable below if needed
@@ -168,6 +299,7 @@ ol li{margin:3px 0}
     $("loginBtn").textContent = "연결됨"; $("token").disabled = true;
     setStatus($("loginStatus"), `${OWNER}/${REPO} 저장소에 연결했어요.`, "ok");
     $("setCard").classList.remove("locked"); $("saveBtn").disabled = false;
+    $("logCard").classList.remove("locked"); initLog();
     $("howto").open = false;
     render();
   }
@@ -210,10 +342,11 @@ ol li{margin:3px 0}
     $("winBar").style.width = Math.min(100, p) + "%";
   }
 
-  async function saveCfg(){
-    const btn = $("saveBtn"), st = $("saveStatus");
+  async function saveCfg(btn, st){
+    btn = btn || $("saveBtn"); st = st || $("saveStatus"); const label = btn.textContent;
     if (!cfg.grades.some(g => g.rate > 0)){ setStatus(st, "비율이 0보다 큰 등급이 하나 이상 필요해요.", "err"); return; }
     const out = {grades: ["L","W"].map(id => { const g = cfg.grades.find(x => x.id === id); return {id, rate: g.rate, items: g.items.length ? g.items : [LABEL[id]]}; })};
+    if (cfg.logUrl) out.logUrl = cfg.logUrl;
     btn.disabled = true; btn.textContent = "저장 중…"; setStatus(st, "");
     const body = { message: "Update jackpot settings from admin page", content: b64enc(JSON.stringify(out, null, 2) + "\n"), branch: BRANCH };
     if (sha) body.sha = sha;
@@ -222,15 +355,101 @@ ol li{margin:3px 0}
       const f = await gh("GET", API + "?ref=" + BRANCH);
       if (f.ok){ body.sha = f.data.sha; r = await gh("PUT", API, body); }
     }
-    btn.disabled = false; btn.textContent = "저장하기";
-    if (r.ok){ sha = r.data.content.sha; cfg = out; render(); setStatus(st, "저장했어요. 1~2분 뒤 게임에 반영돼요.", "ok"); }
+    btn.disabled = false; btn.textContent = label;
+    if (r.ok){ sha = r.data.content.sha; cfg = out; render(); setStatus(st, "저장했어요. 1~2분 뒤 게임에 반영돼요.", "ok"); return true; }
     else if (r.status === 401 || r.status === 403){ setStatus(st, "저장 권한이 없어요. 토큰 권한을 확인해 주세요.", "err"); }
     else setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요. (" + r.status + ")", "err");
+    return false;
+  }
+
+  // ---------- play records (Google Sheet via Apps Script) ----------
+  const keyStore = { get(){ try { return localStorage.getItem("jackpot.admin.logkey") || ""; } catch(e){ return ""; } },
+                     set(v){ try { localStorage.setItem("jackpot.admin.logkey", v); } catch(e){} } };
+  let logRows = [], logFilter = "all", logTimer = 0;
+  const validUrl = u => /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u);
+
+  function initLog(){
+    $("gsCode").value = $("gsSrc").textContent.trim();
+    $("logUrl").value = cfg.logUrl || "";
+    $("logKey").value = keyStore.get();
+    $("logSetup").hidden = !!cfg.logUrl;
+    if (cfg.logUrl && keyStore.get()) loadLog();
+  }
+  $("copyGs").onclick = async () => {
+    try { await navigator.clipboard.writeText($("gsCode").value); $("copyGs").textContent = "복사했어요"; }
+    catch(e){ $("gsCode").select(); $("copyGs").textContent = "선택했어요. 복사하세요"; }
+    setTimeout(() => $("copyGs").textContent = "코드 복사", 2000);
+  };
+  $("logSave").onclick = async () => {
+    const url = $("logUrl").value.trim(), key = $("logKey").value;
+    const st = $("logStatus");
+    if (!validUrl(url)){ setStatus(st, "웹 앱 URL은 https://script.google.com/macros/s/…/exec 형태예요.", "err"); return; }
+    if (!key){ setStatus(st, "비밀번호를 넣어 주세요.", "err"); return; }
+    keyStore.set(key);
+    const ok = await loadLog(url, key);
+    if (!ok) return;
+    if (cfg.logUrl !== url){
+      cfg.logUrl = url;
+      const saved = await saveCfg($("logSave"), st);
+      if (saved) setStatus(st, "연결했어요. 1~2분 뒤부터 게임 결과가 여기에 쌓여요.", "ok");
+    }
+    $("logSetup").hidden = true;
+  };
+  $("logRefresh").onclick = () => loadLog();
+  document.querySelectorAll(".filters button").forEach(b => b.onclick = () => {
+    logFilter = b.dataset.f;
+    document.querySelectorAll(".filters button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    drawLog();
+  });
+
+  async function loadLog(url, key){
+    url = url || cfg.logUrl; key = key || keyStore.get();
+    const st = $("logStatus");
+    if (!url || !key) return false;
+    $("logRefresh").disabled = true;
+    try {
+      const r = await fetch(url + "?key=" + encodeURIComponent(key) + "&limit=300", {cache:"no-store"});
+      const d = await r.json();
+      if (d.error === "key"){ setStatus(st, "비밀번호가 Apps Script의 ADMIN_KEY와 달라요.", "err"); $("logView").hidden = true; return false; }
+      $("stTotal").textContent = d.total.toLocaleString();
+      $("stWins").textContent = d.wins.toLocaleString();
+      $("stRate").textContent = d.total ? (d.wins / d.total * 100).toFixed(1) + "%" : "–";
+      $("stToday").textContent = d.today.toLocaleString();
+      logRows = d.rows || [];
+      $("logView").hidden = false;
+      if (!st.classList.contains("ok")) setStatus(st, "");
+      drawLog();
+      clearTimeout(logTimer); logTimer = setTimeout(() => { if (!document.hidden) loadLog(); else logTimer = setTimeout(loadLog, 30000); }, 30000);
+      return true;
+    } catch(e){
+      setStatus(st, "기록을 불러오지 못했어요. 웹 앱 URL과 배포의 액세스 권한(모든 사용자)을 확인해 주세요.", "err");
+      return false;
+    } finally { $("logRefresh").disabled = false; }
+  }
+
+  const fmt = iso => { const d = new Date(iso), now = new Date(), p = n => String(n).padStart(2, "0");
+    const t = `${p(d.getHours())}:${p(d.getMinutes())}`;
+    return d.toDateString() === now.toDateString() ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`; };
+  function drawLog(){
+    const ul = $("logList"); ul.innerHTML = "";
+    const rows = logFilter === "W" ? logRows.filter(r => r.r === "당첨") : logRows;
+    if (!rows.length){ const li = document.createElement("li"); li.className = "empty"; li.textContent = logFilter === "W" ? "아직 당첨 기록이 없어요" : "아직 기록이 없어요. 게임을 한 번 돌려 보세요."; ul.appendChild(li); return; }
+    for (const r of rows){
+      const W = r.r === "당첨";
+      const li = document.createElement("li"); if (W) li.className = "W";
+      const b = document.createElement("span"); b.className = "badge " + (W ? "W" : "L"); b.textContent = r.r;
+      const mid = document.createElement("span");
+      const f = document.createElement("span"); f.className = "faces"; f.textContent = String(r.f).split("").join(" ");
+      mid.appendChild(f);
+      if (W && r.p && r.p !== "당첨"){ const pz = document.createElement("div"); pz.className = "prize"; pz.textContent = r.p; mid.appendChild(pz); }
+      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${fmt(r.t)} · ${r.id || "?"}${r.ua ? " · " + r.ua : ""}`;
+      li.append(b, mid, meta); ul.appendChild(li);
+    }
   }
 
   $("loginBtn").onclick = connect;
   $("token").addEventListener("keydown", e => { if (e.key === "Enter") connect(); });
-  $("saveBtn").onclick = saveCfg;
+  $("saveBtn").onclick = () => saveCfg();
   const saved = store.get();
   if (saved){ $("token").value = saved; connect(); } else { $("howto").open = true; }
 })();

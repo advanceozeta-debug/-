@@ -274,7 +274,22 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   // the admin site writes config.json next to this page
   fetch("config.json", {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(c => {
     if (c && Array.isArray(c.grades) && c.grades.every(g => g && (g.id === "L" || g.id === "W") && Array.isArray(g.items)) && c.grades.some(g => g.rate > 0)) grades = c.grades;
+    if (c && typeof c.logUrl === "string" && /^https:\/\/script\.google\.com\//.test(c.logUrl)) logUrl = c.logUrl;
   }).catch(() => {});
+
+  // every pull is reported to the admin's record sheet (if the admin set one up)
+  let logUrl = "";
+  const playerId = (() => {
+    let id = load("jackpot.player", null);
+    if (!id){ id = "P" + Math.random().toString(36).slice(2, 8).toUpperCase(); save("jackpot.player", id); }
+    return id;
+  })();
+  function report(res, faces){
+    if (!logUrl) return;
+    const body = JSON.stringify({ r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "", id: playerId,
+      ua: /iPhone|iPad|Android|Mobile/.test(navigator.userAgent) ? "모바일" : "PC" });
+    try { fetch(logUrl, { method: "POST", mode: "no-cors", body, keepalive: true }); } catch(e){}
+  }
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
   let total = load("gacha2.total", 0);
   let soundOn = load("gacha2.sound", true);
@@ -606,6 +621,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
   function finish(res, faces){
     document.body.classList.remove("spinning-body");
+    report(res, faces);
 
     spinning = false; pullBtn.disabled = false; lever.disabled = false;
     main.classList.remove("spinning");
