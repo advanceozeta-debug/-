@@ -2444,10 +2444,13 @@ var qrcode = function() {
       <summary class="hint" style="cursor:pointer;margin:10px 0 0">게임 기기 연결하기</summary>
       <ol class="steps">
         <li>게임을 돌릴 기기마다 한 번씩만 하면 돼요.</li>
-        <li>아래 <b>QR 보기</b>를 누르고, 게임 기기의 카메라로 QR을 찍어서 열어요. (또는 링크를 복사해서 그 기기 크롬에서 열어요.)</li>
+        <li>아래에 <b>기기 연결 비밀번호</b>를 정하고 <b>QR 보기</b>를 눌러요. 게임 기기 카메라로 QR을 찍어 열고, 같은 비밀번호를 넣어요. (또는 링크를 복사해서 그 기기 크롬에서 열어요.)</li>
         <li>게임 화면 오른쪽 아래 스피커 버튼에 <b style="color:var(--ok)">초록 점</b>이 보이면 연결된 거예요. 노란 점은 올리는 중, 빨간 점은 인터넷 연결을 확인해 주세요.</li>
       </ol>
-      <p class="hint">이 QR에는 저장소 열쇠가 들어 있어요. 부스 기기에만 찍고, 다른 사람에게는 보여주지 마세요.</p>
+      <p class="hint">QR 안의 저장소 열쇠는 비밀번호로 잠겨요. QR이 남에게 보여도 비밀번호를 모르면 쓸 수 없어요.</p>
+      <label for="qrPass">기기 연결 비밀번호</label>
+      <input type="password" id="qrPass" autocomplete="new-password" placeholder="6자 이상, 남이 맞히기 어렵게">
+      <p class="status" id="qrStatus"></p>
       <div class="row" style="flex-wrap:wrap">
         <button class="btn" type="button" id="qrBtn">QR 보기</button>
         <button class="btn" type="button" id="linkBtn">링크 복사</button>
@@ -2662,20 +2665,37 @@ var qrcode = function() {
     }
   }
 
-  // hand the repo key to a game device: the key rides in the #fragment, which is never sent to any server
-  const deviceLink = () => GAME_URL + "#k=" + encodeURIComponent(token);
-  $("qrBtn").onclick = () => {
+  // hand the repo key to a game device: the key is encrypted with the admin's password (PBKDF2 + AES-GCM)
+  // and rides in the #fragment, which is never sent to any server
+  const b64u = bytes => { let s = ""; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  async function lockKey(secret, pass){
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(secret)));
+    const out = new Uint8Array(28 + ct.length); out.set(salt); out.set(iv, 16); out.set(ct, 28);
+    return b64u(out);
+  }
+  async function deviceLink(){
+    const pass = $("qrPass").value;
+    if (pass.length < 6){ setStatus($("qrStatus"), "비밀번호를 6자 이상 넣어 주세요.", "err"); $("qrPass").focus(); return null; }
+    setStatus($("qrStatus"), "");
+    return GAME_URL + "#e=" + await lockKey(token, pass);
+  }
+  $("qrBtn").onclick = async () => {
     const box = $("qr");
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; $("qrBtn").textContent = "QR 보기"; return; }
+    const link = await deviceLink(); if (!link) return;
     box.innerHTML = ""; box.hidden = false; $("qrBtn").textContent = "QR 숨기기";
     try {
-      const q = qrcode(0, "L"); q.addData(deviceLink()); q.make();
+      const q = qrcode(0, "L"); q.addData(link); q.make();
       box.innerHTML = q.createSvgTag({ cellSize: 5, margin: 2 });
     } catch(e){ box.style.color = "#000"; box.textContent = "QR을 만들지 못했어요. '링크 복사'를 써 주세요."; }
   };
   $("linkBtn").onclick = async () => {
-    try { await navigator.clipboard.writeText(deviceLink()); $("linkBtn").textContent = "복사했어요"; }
-    catch(e){ prompt("이 링크를 게임 기기에서 열어 주세요", deviceLink()); }
+    const link = await deviceLink(); if (!link) return;
+    try { await navigator.clipboard.writeText(link); $("linkBtn").textContent = "복사했어요"; }
+    catch(e){ prompt("이 링크를 게임 기기에서 열어 주세요", link); }
     setTimeout(() => $("linkBtn").textContent = "링크 복사", 2000);
   };
 

@@ -202,6 +202,17 @@ h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 10px}
 .snd .spk{fill:currentColor}
 .snd .off{display:none}
 .snd{position:fixed}
+.pair{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(0,0,0,.75);padding:16px}
+.pair[hidden]{display:none}
+.pairCard{width:min(340px,100%);background:#18181B;border:1px solid #33353B;border-radius:14px;padding:18px;color:var(--paper)}
+.pairCard label{display:block;font-family:var(--display);font-size:19px;margin-bottom:10px}
+.pairCard input{width:100%;font:inherit;font-size:18px;padding:10px 12px;border-radius:10px;border:1px solid #33353B;background:#0E0E10;color:var(--paper)}
+.pairCard p{min-height:1.4em;margin:8px 0;color:#FF6B70;font-size:14px}
+.pairBtns{display:flex;gap:8px;justify-content:flex-end}
+.pairBtns button{font:inherit;font-weight:600;padding:9px 18px;border-radius:10px;border:1px solid #33353B;background:#222327;color:var(--paper);cursor:pointer}
+#pairGo{background:var(--red);border-color:var(--red);color:#fff}
+.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
 #syncDot{position:absolute;right:1px;top:1px;width:9px;height:9px;border-radius:50%;background:transparent;pointer-events:none}
 #syncDot[data-state="ok"]{background:#5BC48A}
 #syncDot[data-state="busy"]{background:#F2C14E}
@@ -252,6 +263,15 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   <button class="snd" id="sound" aria-pressed="true" aria-label="소리 끄기"><i id="syncDot" data-state="off"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
 </main>
 
+<div class="pair" id="pair" hidden>
+  <div class="pairCard">
+    <label for="pairPass">기기 연결 비밀번호</label>
+    <input type="password" id="pairPass" autocomplete="off">
+    <p id="pairMsg"></p>
+    <div class="pairBtns"><button type="button" id="pairNo">취소</button><button type="button" id="pairGo">연결</button></div>
+  </div>
+</div>
+
 <div class="fever" id="fever" hidden>
   <div class="rays" aria-hidden="true"></div>
   <div class="fchar" id="fchar" data-mood="win"></div>
@@ -289,12 +309,38 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     if (!id){ id = "D" + Math.random().toString(36).slice(2, 7).toUpperCase(); save("jackpot.player", id); }
     return id;
   })();
-  (function takeKeyFromLink(){
-    const m = location.hash.match(/[#&]k=([^&]+)/);
+  // the pairing link carries the repo key ENCRYPTED with a password the admin chose (PBKDF2 + AES-GCM)
+  const b64uDec = t => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+  async function unlockKey(payload, pass){
+    const raw = b64uDec(payload), salt = raw.slice(0, 16), iv = raw.slice(16, 28), ct = raw.slice(28);
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct));
+  }
+  function takeKeyFromLink(){
+    const m = location.hash.match(/[#&]e=([\w-]+)/);
+    if (location.hash) window.history.replaceState(null, "", location.pathname + location.search);
     if (!m) return;
-    try { localStorage.setItem("jackpot.devkey", decodeURIComponent(m[1])); } catch(e){}
-    window.history.replaceState(null, "", location.pathname + location.search);
-  })();
+    const box = document.getElementById("pair"), card = box.querySelector(".pairCard");
+    const inp = document.getElementById("pairPass"), msg = document.getElementById("pairMsg");
+    box.hidden = false; setTimeout(() => inp.focus(), 50);
+    const go = async () => {
+      if (!inp.value) return;
+      msg.textContent = "확인 중…";
+      try {
+        const k = await unlockKey(m[1], inp.value);
+        try { localStorage.setItem("jackpot.devkey", k); } catch(e){}
+        box.hidden = true; msg.textContent = ""; inp.value = "";
+        dirty = true; sync();
+      } catch(e){
+        msg.textContent = "비밀번호가 달라요"; inp.select();
+        card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+      }
+    };
+    document.getElementById("pairGo").onclick = go;
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+    document.getElementById("pairNo").onclick = () => { box.hidden = true; };
+  }
   const devKey = () => { try { return localStorage.getItem("jackpot.devkey") || ""; } catch(e){ return ""; } };
   const REPO = (() => {
     const h = location.hostname, p = location.pathname.split("/").filter(Boolean);
@@ -352,6 +398,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   }
   setInterval(sync, 20000);
   addEventListener("online", sync);
+  takeKeyFromLink();
   setTimeout(sync, 800);
 
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
