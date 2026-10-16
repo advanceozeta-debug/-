@@ -213,7 +213,7 @@ h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 10px}
 #pairGo{background:var(--red);border-color:var(--red);color:#fff}
 .shake{animation:shake .35s}
 @keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
-#syncDot{position:absolute;right:1px;top:1px;width:9px;height:9px;border-radius:50%;background:transparent;pointer-events:none}
+#syncDot{position:fixed;z-index:30;right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));width:8px;height:8px;border-radius:50%;background:transparent;pointer-events:none}
 #syncDot[data-state="ok"]{background:#5BC48A}
 #syncDot[data-state="busy"]{background:#F2C14E}
 #syncDot[data-state="err"]{background:#FF5A5F}
@@ -260,7 +260,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     <button class="pull" id="pull" aria-label="돌리기"></button>
   </div>
 
-  <button class="snd" id="sound" aria-pressed="true" aria-label="소리 끄기"><i id="syncDot" data-state="off"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
+  <i id="syncDot" data-state="off" aria-hidden="true"></i>
 </main>
 
 <div class="pair" id="pair" hidden>
@@ -768,8 +768,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   function renderStats(){}
 
 
-  const syncSound = () => { $("sound").setAttribute("aria-pressed", soundOn); $("sound").setAttribute("aria-label", soundOn ? "소리 끄기" : "소리 켜기"); };
-  $("sound").onclick = () => { soundOn = !soundOn; save("gacha2.sound", soundOn); syncSound(); };
+  soundOn = true;                       // sound is always on (no toggle on the booth screen)
+  const syncSound = () => {};
   pullBtn.onclick = spin;
   // drag the lever down yourself: ratchets as it goes, fires past 70%, springs back if you let go early
   const stick = lever.querySelector(".stick");
