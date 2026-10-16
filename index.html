@@ -317,31 +317,41 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
     return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct));
   }
-  function takeKeyFromLink(){
-    const m = location.hash.match(/[#&]e=([\w-]+)/);
-    if (location.hash) window.history.replaceState(null, "", location.pathname + location.search);
-    if (!m) return;
+  // The key is stored on this device only in its ENCRYPTED form. Each time the game is opened, staff
+  // type the password once; the unlocked key then lives only in memory until the page is closed.
+  let memKey = "";
+  const devKey = () => memKey;
+  try { localStorage.removeItem("jackpot.devkey"); } catch(e){}          // drop plain keys from older versions
+  function askPassword(payload, isNew){
     const box = document.getElementById("pair"), card = box.querySelector(".pairCard");
     const inp = document.getElementById("pairPass"), msg = document.getElementById("pairMsg");
+    msg.textContent = ""; inp.value = "";
     box.hidden = false; setTimeout(() => inp.focus(), 50);
     const go = async () => {
       if (!inp.value) return;
       msg.textContent = "확인 중…";
       try {
-        const k = await unlockKey(m[1], inp.value);
-        try { localStorage.setItem("jackpot.devkey", k); } catch(e){}
+        memKey = await unlockKey(payload, inp.value);
+        if (isNew) try { localStorage.setItem("jackpot.devkeyEnc", payload); } catch(e){}
         box.hidden = true; msg.textContent = ""; inp.value = "";
-        dirty = true; sync();
+        if (playLog.length){ dirty = true; }
+        sync();
       } catch(e){
         msg.textContent = "비밀번호가 달라요"; inp.select();
         card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
       }
     };
     document.getElementById("pairGo").onclick = go;
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
-    document.getElementById("pairNo").onclick = () => { box.hidden = true; };
+    inp.onkeydown = e => { if (e.key === "Enter") go(); };
+    document.getElementById("pairNo").onclick = () => { box.hidden = true; setDot("off"); };
   }
-  const devKey = () => { try { return localStorage.getItem("jackpot.devkey") || ""; } catch(e){ return ""; } };
+  function takeKeyFromLink(){
+    const m = location.hash.match(/[#&]e=([\w-]+)/);
+    if (location.hash) window.history.replaceState(null, "", location.pathname + location.search);
+    if (m) return askPassword(m[1], true);                                 // new pairing from the admin QR
+    let saved = ""; try { saved = localStorage.getItem("jackpot.devkeyEnc") || ""; } catch(e){}
+    if (saved) askPassword(saved, false);                                  // already paired: unlock for this session
+  }
   const REPO = (() => {
     const h = location.hostname, p = location.pathname.split("/").filter(Boolean);
     if (!h.endsWith(".github.io")) return null;
