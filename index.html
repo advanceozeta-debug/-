@@ -353,16 +353,18 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     document.getElementById("pairNo").onclick = () => { box.hidden = true; setDot("off"); };
   }
   async function takeKeyFromLink(){
-    const m = location.hash.match(/[#&]e=([\w-]+)/), pm = location.hash.match(/[#&]p=([\w-]+)/);
+    const m = location.hash.match(/[#&]e=([\w-]+)/); let pm = location.hash.match(/[#&]p=([\w-]+)/);
     if (location.hash) window.history.replaceState(null, "", location.pathname + location.search);
     let saved = ""; try { saved = localStorage.getItem("jackpot.devkeyEnc") || ""; } catch(e){}
     const payload = m ? m[1] : saved;
     if (!payload) return;
+    let savedPass = ""; try { savedPass = localStorage.getItem("jackpot.devpass") || ""; } catch(e){}
+    if (!pm && !m && savedPass) pm = [null, savedPass];                   // already paired: unlock by itself
     if (pm){                                                               // QR that also carries the password: no typing
       try {
         const pass = new TextDecoder().decode(b64uDec(pm[1]));
         memKey = await unlockKey(payload, pass);
-        if (m) try { localStorage.setItem("jackpot.devkeyEnc", payload); } catch(e){}
+        try { localStorage.setItem("jackpot.devkeyEnc", payload); localStorage.setItem("jackpot.devpass", pm[1]); } catch(e){}
         if (playLog.length) dirty = true;
         document.getElementById("pair").hidden = true;
         sync(); return;
