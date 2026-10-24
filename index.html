@@ -699,8 +699,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
     strips.forEach((s, k) => {
       const extra = (k === 2 && suspense);
-      const count = reduce ? 4 + k : 18 + k*7 + (extra ? 12 : 0);
-      const dur = reduce ? 300 + k*150 : 1600 + k*550 + (extra ? 1500 : 0);
+      const count = reduce ? 4 + k : 10 + k*4 + (extra ? 6 : 0);
+      const dur = reduce ? 300 + k*150 : 800 + k*300 + (extra ? 700 : 0);
       const at = NUMS.indexOf(faces[k]);
       const start = ((at - count) % N + N) % N;
       let html = "";
@@ -709,7 +709,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
       s.style.transition = "none"; s.style.transform = "translateY(0)"; s.innerHTML = html;
       void s.offsetHeight;
       const target = -(count - 1) * h, over = reduce ? 0 : Math.round(h * .16);
-      const WIND = reduce ? 0 : 140;
+      const WIND = reduce ? 0 : 90;
       // wind-up: reel kicks back a little before it takes off
       if (WIND){ s.style.transition = `transform ${WIND}ms ease-out`; s.style.transform = `translateY(${Math.round(h*.22)}px)`; }
       setTimeout(() => {
@@ -730,7 +730,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
           cab.classList.add("suspense");
           setMood("spin", "어?! 두 개 맞았어!!");
         }
-        if (k === 2) setTimeout(() => finish(res, faces), 160);
+        if (k === 2) setTimeout(() => finish(res, faces), 80);
       }, WIND + dur);
     });
 
@@ -781,7 +781,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     if (res.g === "W"){
       main.classList.add("won");
       setMood("win", "당첨이야!! 대박!!");
-      setTimeout(() => showFever(res, faces), 250);
+      setTimeout(() => showFever(res, faces), 150);
       void cab.offsetWidth; cab.classList.add("jolt");
       buzz([80,50,80,50,220]);
     }
