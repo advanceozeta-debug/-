@@ -110,7 +110,6 @@ main.land .deck{grid-column:1;grid-row:1 / 4}
 main.land .pt{grid-column:2;grid-row:1;grid-template-columns:repeat(4,1fr);margin:0}
 main.land .result{display:none}
 main.land .sid{grid-column:2;grid-row:1;margin:0}
-main.land .sid .lab small{display:none}
 main.land .sid input{font-size:24px;letter-spacing:.18em;padding-left:.18em}
 main.land .sid input::placeholder{letter-spacing:.18em}
 main.land .sidmsg{font-size:13px;line-height:1.3}
@@ -161,7 +160,9 @@ main.land .pull{grid-column:2;grid-row:2 / 4;align-self:center;justify-self:cent
 /* ---------- student-number entry: an LED keypad display ---------- */
 .sid{margin:16px 0 0;padding:10px 12px 8px;border-radius:10px;background:#0A0A0C;box-shadow:inset 0 0 0 1px #000,0 0 0 1px #45484F}
 .sid .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--display);font-size:15px;color:var(--paper);margin-bottom:6px}
-.sid .lab small{font-family:var(--body);font-size:12px;color:var(--muted)}
+.ftag{font-family:var(--body);font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:#2A2C31;color:var(--muted);white-space:nowrap}
+.ftag.live{background:var(--gold);color:#1A1406}
+.ftag.live::before{content:"";display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:50%;background:var(--red);vertical-align:1px;animation:blinkall 1s steps(1) infinite}
 .sid input{display:block;width:100%;font-family:var(--arcade);font-size:30px;letter-spacing:.45em;text-align:center;padding:6px 0 6px .45em;
   border:2px solid var(--steel-hi);border-radius:8px;background:#141416;color:var(--gold);caret-color:var(--gold)}
 .sid input::placeholder{color:#3E4148;letter-spacing:.45em}
@@ -283,9 +284,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     </div>
     <div class="result" id="result" aria-live="polite" hidden></div>
     <div class="sid" id="sidBox">
-      <label class="lab" for="sid">학번 <small>학번당 1번만 뽑을 수 있어요</small></label>
-      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="00000" aria-describedby="sidMsg">
-      <p class="sidmsg" id="sidMsg" aria-live="polite">학번 5자리를 입력하세요</p>
+      <label class="lab" for="sid">학번 <span class="ftag" id="festTag">연습 모드 · 기록 안 됨</span></label>
+      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="x0xxx" aria-describedby="sidMsg">
+      <p class="sidmsg" id="sidMsg" aria-live="polite">학년·반·번호 5자리 (예: 10312)</p>
     </div>
     <button class="pull" id="pull" aria-label="돌리기"></button>
   </div>
@@ -402,7 +403,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   })();
   let playLog = load("jackpot.log", []), dirty = load("jackpot.dirty", false), fileSha = null, syncing = false;
   function report(res, faces){
-    playLog.push({ t: Date.now(), r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "", s: curSid });
+    if (!FEST.active) return;                       // practice mode: nothing is recorded
+    playLog.push({ fv: FEST.id, t: Date.now(), r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "", s: curSid });
     save("jackpot.log", playLog); dirty = true; save("jackpot.dirty", true);
     scheduleSync();
   }
@@ -463,12 +465,29 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
   // ---- one play per student number. Numbers already used on THIS device come from its own log;
   // numbers used on the other booth devices are read from their logs on the records branch every 15s.
-  const usedRemote = new Set(), fileCache = {};      // file name -> {sha, ids}
-  const usedHere = () => new Set(playLog.map(x => x.s).filter(Boolean));
-  const isUsed = id => usedHere().has(id) || usedRemote.has(id);
+  // festival on/off is set from the admin page (records branch, festival.json). The last state seen is
+  // remembered so a reload without internet still knows whether a festival is running.
+  let FEST = load("jackpot.fest", { active: false });
+  function showFest(){
+    const t = document.getElementById("festTag"); if (!t) return;
+    t.classList.toggle("live", !!FEST.active);
+    t.textContent = FEST.active ? "축제 기록 중" : "연습 모드 · 기록 안 됨";
+    t.title = FEST.active ? (FEST.name || "") : "관리자 페이지에서 축제 기록을 시작하면 기록돼요";
+  }
+  showFest();
+  const usedRemote = new Set(), fileCache = {};      // file name -> {sha, rows:[{s,fv}]}
+  const usedHere = () => new Set(playLog.filter(x => x.fv === FEST.id).map(x => x.s).filter(Boolean));
+  const isUsed = id => FEST.active && (usedHere().has(id) || usedRemote.has(id));
+  const decodeB64 = c => new TextDecoder().decode(Uint8Array.from(atob(c.replace(/\s/g, "")), ch => ch.charCodeAt(0)));
   async function pullUsed(){
     if (!REPO || !devKey()) return;
     try {
+      const fs = await gh("GET", "/contents/festival.json?ref=records");
+      if (fs.ok && fs.data && fs.data.content){
+        const f = JSON.parse(decodeB64(fs.data.content));
+        FEST = f && f.active && f.id ? { active: true, id: f.id, name: f.name || "" } : { active: false };
+      } else if (fs.status === 404) FEST = { active: false };
+      save("jackpot.fest", FEST); showFest();
       const list = await gh("GET", "/contents/logs?ref=records");
       if (!list.ok || !Array.isArray(list.data)) return;
       for (const f of list.data){
@@ -476,18 +495,26 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         if (fileCache[f.name] && fileCache[f.name].sha === f.sha) continue;
         const g = await gh("GET", "/contents/logs/" + encodeURIComponent(f.name) + "?ref=records");
         if (!g.ok || !g.data || !g.data.content) continue;
-        const txt = new TextDecoder().decode(b64uDec(g.data.content.replace(/\s/g, "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")));
-        const rows = (JSON.parse(txt).rows || []);
-        fileCache[f.name] = { sha: f.sha, ids: rows.map(x => x.s).filter(Boolean) };
+        const rows = (JSON.parse(decodeB64(g.data.content)).rows || []);
+        fileCache[f.name] = { sha: f.sha, rows: rows.filter(x => x.s).map(x => ({ s: x.s, fv: x.fv })) };
       }
       usedRemote.clear();
-      Object.values(fileCache).forEach(c => c.ids.forEach(id => usedRemote.add(id)));
+      Object.values(fileCache).forEach(c => c.rows.forEach(x => { if (x.fv && x.fv === FEST.id) usedRemote.add(x.s); }));
       sidCheck();
     } catch(e){}
   }
   setInterval(pullUsed, 15000);
   setTimeout(pullUsed, 1500);
   let curSid = "";
+  // returns "" when the number is a valid x0xxx 학번, otherwise what is wrong with it
+  function sidProblem(v){
+    if (!/^\d{5}$/.test(v)) return "학년·반·번호 5자리 (예: 10312)";
+    if (!/^[1-3]/.test(v)) return "학년은 1~3이에요 (예: 10312)";
+    if (v[1] !== "0") return "학번은 x0xxx 형식이에요 (예: 10312)";
+    if (v[2] === "0") return "반은 1~9반이에요 (예: 10312)";
+    const n = +v.slice(3); if (n < 1 || n > 40) return "번호는 01~40이에요 (예: 10312)";
+    return "";
+  }
 
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
   let total = load("gacha2.total", 0);
@@ -734,7 +761,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     if (spinning) return;
     if (!pool().length) return;
     const id = sidIn.value.trim();
-    if (!/^\d{5}$/.test(id)){ sidSay("학번 5자리를 입력하세요", "bad", true); sidIn.focus(); return; }
+    const bad = sidProblem(id);
+    if (bad){ sidSay(bad, "bad", true); sidIn.focus(); return; }
     if (isUsed(id)){ sidSay("이미 참여한 학번이에요", "bad", true); sidIn.select(); return; }
     curSid = id; sidIn.disabled = true; sidIn.blur();
     sidSay(id + " 뽑는 중…", "ok");
@@ -831,7 +859,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     document.body.classList.remove("spinning-body");
     report(res, faces);
     sidIn.value = ""; sidIn.disabled = false; curSid = "";
-    setTimeout(() => sidSay("다음 학번 5자리를 입력하세요", ""), 1200);
+    setTimeout(() => sidSay("다음 학번을 입력하세요 (예: 10312)", ""), 1200);
 
     spinning = false; pullBtn.disabled = false; lever.disabled = false;
     main.classList.remove("spinning");
@@ -868,10 +896,14 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   function sidCheck(){
     if (spinning) return;
     const v = sidIn.value;
-    if (!v) return sidSay("학번 5자리를 입력하세요", "");
-    if (v.length < 5) return sidSay("학번 5자리를 입력하세요", "");
+    if (v.length < 5){
+      // flag a wrong 학년 or a missing 0 as soon as it is typed
+      const early = (v.length >= 1 && !/^[1-3]/.test(v)) || (v.length >= 2 && v[1] !== "0") || (v.length >= 3 && v[2] === "0");
+      return early ? sidSay(sidProblem(v.padEnd(5, "1")), "bad") : sidSay("학년·반·번호 5자리 (예: 10312)", "");
+    }
+    const bad = sidProblem(v); if (bad) return sidSay(bad, "bad");
     if (isUsed(v)) return sidSay("이미 참여한 학번이에요", "bad");
-    sidSay("레버를 당기거나 버튼을 누르세요!", "ok");
+    sidSay(FEST.active ? "레버를 당기거나 버튼을 누르세요!" : "연습 모드예요 · 기록되지 않아요", "ok");
   }
   sidIn.addEventListener("input", () => {
     const clean = sidIn.value.replace(/\D/g, "").slice(0, 5);

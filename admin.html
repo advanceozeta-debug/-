@@ -78,6 +78,21 @@ ol li{margin:3px 0}
 .loghead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .loghead .hint{margin:0}
 .filters{display:flex;gap:6px}
+/* festival card */
+.fest{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:var(--void);border:1px solid var(--line);margin-bottom:10px}
+.fest .dot{flex:none;width:14px;height:14px;border-radius:50%;background:#3A3C42}
+.fest.live{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.fest.live .dot{background:var(--red);box-shadow:0 0 10px var(--red);animation:fblink 1s steps(1) infinite}
+@keyframes fblink{50%{opacity:.3}}
+.fest b{display:block;font-family:var(--display);font-weight:400;font-size:19px}
+.fest span{font-size:13px;color:var(--muted)}
+.festList{list-style:none;margin:8px 0 0;padding:0}
+.festList li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.festList li .grow{flex:1;min-width:0}
+.festList li small{display:block;color:var(--muted);font-size:12px}
+.views{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.views button{font:inherit;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.views button[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
 .filters button{font:inherit;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
 .filters button[aria-pressed="true"]{background:var(--panel2);color:var(--text);border-color:var(--steel)}
 .log{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:60vh;overflow-y:auto}
@@ -2422,8 +2437,25 @@ var qrcode = function() {
     </details>
   </section>
 
+  <section class="card locked" id="festCard">
+    <h2>축제 기록</h2>
+    <p class="hint">축제 기록을 시작한 동안만 뽑기 결과가 저장되고, 학번당 1번만 뽑을 수 있어요. 기록을 시작하지 않으면 게임은 연습 모드로 돌아가요.</p>
+    <div class="fest" id="festNow"><i class="dot"></i><div><b id="festTitle">불러오는 중…</b><span id="festSub"></span></div></div>
+    <div id="festStartBox">
+      <label for="festName">축제 이름</label>
+      <div class="row"><input type="text" id="festName" maxlength="40" placeholder="예: 2026 학교 축제"></div>
+    </div>
+    <p class="status" id="festStatus"></p>
+    <button class="btn primary big" type="button" id="festBtn" disabled>축제 기록 시작</button>
+    <details id="festPast" hidden>
+      <summary class="hint" style="cursor:pointer;margin:12px 0 0">지난 축제 기록</summary>
+      <ul class="festList" id="festList"></ul>
+    </details>
+  </section>
+
   <section class="card locked" id="logCard">
     <h2>뽑기 기록</h2>
+    <div class="views" id="views" role="group" aria-label="어떤 기록을 볼지"></div>
     <div class="tiles">
       <div class="tile"><b id="stTotal">–</b><span>전체</span></div>
       <div class="tile gold"><b id="stWins">–</b><span>당첨</span></div>
@@ -2435,7 +2467,7 @@ var qrcode = function() {
         <button type="button" data-f="all" aria-pressed="true">전체</button>
         <button type="button" data-f="W" aria-pressed="false">당첨만</button>
       </div>
-      <button class="btn" type="button" id="logRefresh">새로고침</button>
+      <div class="row" style="gap:6px;flex:none"><button class="btn" type="button" id="csvBtn">엑셀(CSV) 받기</button><button class="btn" type="button" id="logRefresh">새로고침</button></div>
     </div>
     <ul class="log" id="logList"></ul>
     <p class="status" id="logStatus"></p>
@@ -2533,7 +2565,7 @@ var qrcode = function() {
     $("loginBtn").textContent = "연결됨"; $("token").disabled = true;
     setStatus($("loginStatus"), `${OWNER}/${REPO} 저장소에 연결했어요.`, "ok");
     $("setCard").classList.remove("locked"); $("saveBtn").disabled = false;
-    $("logCard").classList.remove("locked"); initLog();
+    $("logCard").classList.remove("locked"); $("festCard").classList.remove("locked"); initLog();
     $("howto").open = false;
     render();
   }
@@ -2635,16 +2667,12 @@ var qrcode = function() {
         if (!g.ok || !g.data || !Array.isArray(g.data.rows)) return;
         const dev = g.data.device || files[i].name.replace(/\.json$/, "");
         if (!devNames[dev]) devNames[dev] = "기기 " + (Object.keys(devNames).length + 1);
-        for (const x of g.data.rows) rows.push({ t: x.t, r: x.r, f: String(x.f || ""), p: x.p || "", s: x.s || "", dev });
+        for (const x of g.data.rows) rows.push({ t: x.t, r: x.r, f: String(x.f || ""), p: x.p || "", s: x.s || "", fv: x.fv || "", dev });
       });
       rows.sort((a, b) => b.t - a.t);
       logRows = rows;
-      const wins = rows.filter(r => r.r === "W").length;
-      const today = new Date().toDateString();
-      $("stTotal").textContent = rows.length.toLocaleString();
-      $("stWins").textContent = wins.toLocaleString();
-      $("stRate").textContent = rows.length ? (wins / rows.length * 100).toFixed(1) + "%" : "–";
-      $("stToday").textContent = rows.filter(r => new Date(r.t).toDateString() === today).length.toLocaleString();
+      await loadFest();
+      drawStats();
       setStatus(st, files.length ? "" : "아직 연결된 게임 기기가 없어요. 아래 '게임 기기 연결하기'를 열어 주세요.");
       if (!files.length) $("devBox").open = true;
       drawLog();
@@ -2655,13 +2683,133 @@ var qrcode = function() {
       clearTimeout(logTimer); logTimer = setTimeout(() => document.hidden ? (logTimer = setTimeout(loadLog, 5000)) : loadLog(), 5000);
     }
   }
+  function viewRows(){ return viewFest === "all" ? logRows : logRows.filter(r => r.fv === viewFest); }
+  function drawStats(){
+      const rows = viewRows();
+      const wins = rows.filter(r => r.r === "W").length;
+      const today = new Date().toDateString();
+      $("stTotal").textContent = rows.length.toLocaleString();
+      $("stWins").textContent = wins.toLocaleString();
+      $("stRate").textContent = rows.length ? (wins / rows.length * 100).toFixed(1) + "%" : "–";
+      $("stToday").textContent = rows.filter(r => new Date(r.t).toDateString() === today).length.toLocaleString();
+  }
+
+  // ---------- festivals: records branch festival.json {active, id, name, start, list:[{id,name,start,end}]} ----------
+  const FEST_PATH = "/contents/festival.json";
+  let fest = { active: false, list: [] }, festSha = null, viewFest = null, festBusy = false;
+  async function loadFest(){
+    if (festBusy) return;
+    const g = await cachedGet(FEST_PATH + "?ref=records", false);
+    if (g.ok && g.data && g.data.content){ try { fest = JSON.parse(b64dec(g.data.content)); festSha = g.data.sha; } catch(e){} }
+    else if (g.status === 404){ fest = { active: false, list: [] }; festSha = null; }
+    if (!Array.isArray(fest.list)) fest.list = [];
+    drawFest();
+  }
+  const fdate = ms => { const d = new Date(ms), p = n => String(n).padStart(2, "0"); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  function drawFest(){
+    const live = !!fest.active, cur = fest.list.find(f => f.id === fest.id);
+    $("festNow").classList.toggle("live", live);
+    if (live){
+      const n = logRows.filter(r => r.fv === fest.id).length;
+      $("festTitle").textContent = "기록 중 · " + (cur ? cur.name : "축제");
+      $("festSub").textContent = `${cur ? fdate(cur.start) + " 시작 · " : ""}${n.toLocaleString()}명 참여`;
+    } else {
+      $("festTitle").textContent = "기록 안 하는 중 (연습 모드)";
+      $("festSub").textContent = "게임은 돌아가지만 결과가 저장되지 않아요";
+    }
+    $("festStartBox").hidden = live;
+    const btn = $("festBtn"); btn.disabled = festBusy;
+    btn.textContent = live ? "축제 기록 끝내기" : "축제 기록 시작";
+    btn.classList.toggle("primary", !live);
+    if (!$("festName").value){ const d = new Date(); $("festName").placeholder = `예: ${d.getMonth() + 1}월 ${d.getDate()}일 축제`; }
+    // past festivals
+    const past = fest.list.slice().reverse();
+    $("festPast").hidden = !past.length;
+    const ul = $("festList"); ul.innerHTML = "";
+    for (const f of past){
+      const rows = logRows.filter(r => r.fv === f.id), w = rows.filter(r => r.r === "W").length;
+      const li = document.createElement("li");
+      const t = document.createElement("div"); t.className = "grow";
+      t.textContent = f.name + (f.id === fest.id && live ? " (진행 중)" : "");
+      const sm = document.createElement("small"); sm.textContent = `${fdate(f.start)}${f.end ? " ~ " + fdate(f.end) : ""} · ${rows.length}명 · 당첨 ${w}`;
+      t.appendChild(sm);
+      const b = document.createElement("button"); b.className = "btn"; b.type = "button"; b.textContent = "CSV";
+      b.onclick = () => downloadCsv(rows, f.name);
+      li.append(t, b); ul.appendChild(li);
+    }
+    // which records to show below: the running festival by default, else the latest one
+    const ids = fest.list.map(f => f.id);
+    if (!viewFest || (viewFest !== "all" && !ids.includes(viewFest))) viewFest = live ? fest.id : (ids[ids.length - 1] || "all");
+    const vb = $("views"); vb.innerHTML = "";
+    [...fest.list.slice(-4).reverse().map(f => [f.id, f.name]), ["all", "전체 기록"]].forEach(([id, name]) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = name;
+      b.setAttribute("aria-pressed", id === viewFest);
+      b.onclick = () => { viewFest = id; drawFest(); drawStats(); drawLog(); };
+      vb.appendChild(b);
+    });
+  }
+  async function writeFest(next, msg){
+    festBusy = true; drawFest();
+    const url = REPO_API + FEST_PATH;
+    const body = { message: msg, branch: "records", content: b64enc(JSON.stringify(next, null, 2) + "\n") };
+    let g = await gh("GET", url + "?ref=records");
+    if (g.ok) body.sha = g.data.sha;
+    else if (g.status === 404){
+      const b = await gh("GET", REPO_API + "/git/ref/heads/records");
+      if (!b.ok){ const m = await gh("GET", REPO_API + "/git/ref/heads/main"); if (m.ok) await gh("POST", REPO_API + "/git/refs", { ref: "refs/heads/records", sha: m.data.object.sha }); }
+    }
+    const r = await gh("PUT", url, body);
+    festBusy = false;
+    if (r.ok){ fest = next; festSha = r.data.content.sha; for (const k in etagCache) if (k.includes("festival.json")) delete etagCache[k]; }
+    drawFest(); drawStats(); drawLog();
+    return r.ok;
+  }
+  $("festBtn").onclick = async () => {
+    const st = $("festStatus");
+    if (fest.active){
+      const cur = fest.list.find(f => f.id === fest.id);
+      if (!confirm(`'${cur ? cur.name : "축제"}' 기록을 끝낼까요?\n끝내면 게임이 연습 모드로 바뀌어요.`)) return;
+      const next = JSON.parse(JSON.stringify(fest));
+      next.active = false; const c = next.list.find(f => f.id === next.id); if (c) c.end = Date.now();
+      setStatus(st, "끝내는 중…");
+      (await writeFest(next, "End festival")) ? setStatus(st, "축제 기록을 끝냈어요. 게임 기기에는 15초 안에 반영돼요.", "ok") : setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+    } else {
+      const d = new Date();
+      const name = $("festName").value.trim() || `${d.getMonth() + 1}월 ${d.getDate()}일 축제`;
+      const id = "F" + Date.now().toString(36).toUpperCase();
+      const next = { active: true, id, name, list: [...fest.list, { id, name, start: Date.now() }] };
+      setStatus(st, "시작하는 중…");
+      if (await writeFest(next, "Start festival: " + name)){
+        viewFest = id; $("festName").value = ""; drawFest(); drawStats(); drawLog();
+        setStatus(st, "축제 기록을 시작했어요. 게임 기기에는 15초 안에 '축제 기록 중'으로 바뀌어요.", "ok");
+      } else setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+    }
+  };
+
+  // spreadsheet export (UTF-8 with BOM so Excel shows Korean correctly)
+  function downloadCsv(rows, name){
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const p = n => String(n).padStart(2, "0");
+    const when = ms => { const d = new Date(ms); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+    const lines = [["시간", "학번", "결과", "상품", "숫자", "기기"].map(q).join(",")];
+    rows.slice().sort((a, b) => a.t - b.t).forEach(r => lines.push([when(r.t), r.s, r.r === "W" ? "당첨" : "꽝", r.r === "W" && r.p !== "당첨" ? r.p : "", r.f, devNames[r.dev] || r.dev].map(q).join(",")));
+    const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = (name || "뽑기 기록").replace(/[\\/:*?"<>|]/g, "_") + ".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  $("csvBtn").onclick = () => {
+    const f = fest.list.find(x => x.id === viewFest);
+    downloadCsv(logFilter === "W" ? viewRows().filter(r => r.r === "W") : viewRows(), f ? f.name : "전체 기록");
+  };
 
   const fmt = ms => { const d = new Date(ms), now = new Date(), p = n => String(n).padStart(2, "0");
     const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     return d.toDateString() === now.toDateString() ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`; };
   function drawLog(){
     const ul = $("logList"); ul.innerHTML = "";
-    const rows = (logFilter === "W" ? logRows.filter(r => r.r === "W") : logRows).slice(0, 500);
+    const base = viewRows();
+    const rows = (logFilter === "W" ? base.filter(r => r.r === "W") : base).slice(0, 500);
     if (!rows.length){ const li = document.createElement("li"); li.className = "empty"; li.textContent = logFilter === "W" ? "아직 당첨 기록이 없어요" : "아직 기록이 없어요"; ul.appendChild(li); return; }
     for (const r of rows){
       const W = r.r === "W";
