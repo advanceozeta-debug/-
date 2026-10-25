@@ -2635,7 +2635,7 @@ var qrcode = function() {
         if (!g.ok || !g.data || !Array.isArray(g.data.rows)) return;
         const dev = g.data.device || files[i].name.replace(/\.json$/, "");
         if (!devNames[dev]) devNames[dev] = "기기 " + (Object.keys(devNames).length + 1);
-        for (const x of g.data.rows) rows.push({ t: x.t, r: x.r, f: String(x.f || ""), p: x.p || "", dev });
+        for (const x of g.data.rows) rows.push({ t: x.t, r: x.r, f: String(x.f || ""), p: x.p || "", s: x.s || "", dev });
       });
       rows.sort((a, b) => b.t - a.t);
       logRows = rows;
@@ -2671,7 +2671,7 @@ var qrcode = function() {
       const f = document.createElement("span"); f.className = "faces"; f.textContent = r.f.split("").join(" ");
       mid.appendChild(f);
       if (W && r.p && r.p !== "당첨"){ const pz = document.createElement("div"); pz.className = "prize"; pz.textContent = r.p; mid.appendChild(pz); }
-      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${fmt(r.t)} · ${devNames[r.dev] || r.dev}`;
+      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${r.s ? "학번 " + r.s + " · " : ""}${fmt(r.t)} · ${devNames[r.dev] || r.dev}`;
       li.append(b, mid, meta); ul.appendChild(li);
     }
   }
