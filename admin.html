@@ -2791,8 +2791,8 @@ var qrcode = function() {
     const q = v => `"${String(v).replace(/"/g, '""')}"`;
     const p = n => String(n).padStart(2, "0");
     const when = ms => { const d = new Date(ms); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
-    const lines = [["시간", "학번", "결과", "상품", "숫자", "기기"].map(q).join(",")];
-    rows.slice().sort((a, b) => a.t - b.t).forEach(r => lines.push([when(r.t), r.s, r.r === "W" ? "당첨" : "꽝", r.r === "W" && r.p !== "당첨" ? r.p : "", r.f, devNames[r.dev] || r.dev].map(q).join(",")));
+    const lines = [["시간", "구분", "학번", "결과", "상품", "숫자", "기기"].map(q).join(",")];
+    rows.slice().sort((a, b) => a.t - b.t).forEach(r => lines.push([when(r.t), r.s ? (r.s[0] === "0" ? "선생님" : "학생") : "", r.s ? "\u2060" + r.s : "", r.r === "W" ? "당첨" : "꽝", r.r === "W" && r.p !== "당첨" ? r.p : "", r.f, devNames[r.dev] || r.dev].map(q).join(",")));
     const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = (name || "뽑기 기록").replace(/[\\/:*?"<>|]/g, "_") + ".csv";
@@ -2819,7 +2819,7 @@ var qrcode = function() {
       const f = document.createElement("span"); f.className = "faces"; f.textContent = r.f.split("").join(" ");
       mid.appendChild(f);
       if (W && r.p && r.p !== "당첨"){ const pz = document.createElement("div"); pz.className = "prize"; pz.textContent = r.p; mid.appendChild(pz); }
-      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${r.s ? "학번 " + r.s + " · " : ""}${fmt(r.t)} · ${devNames[r.dev] || r.dev}`;
+      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${r.s ? (r.s[0] === "0" ? "선생님 " : "학번 ") + r.s + " · " : ""}${fmt(r.t)} · ${devNames[r.dev] || r.dev}`;
       li.append(b, mid, meta); ul.appendChild(li);
     }
   }

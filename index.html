@@ -285,8 +285,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     <div class="result" id="result" aria-live="polite" hidden></div>
     <div class="sid" id="sidBox">
       <label class="lab" for="sid">학번 <span class="ftag" id="festTag">연습 모드 · 기록 안 됨</span></label>
-      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="x0xxx" aria-describedby="sidMsg">
-      <p class="sidmsg" id="sidMsg" aria-live="polite">학년·반·번호 5자리 (예: 10312)</p>
+      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="00000" aria-describedby="sidMsg">
+      <p class="sidmsg" id="sidMsg" aria-live="polite">학번 5자리를 입력하세요</p>
     </div>
     <button class="pull" id="pull" aria-label="돌리기"></button>
   </div>
@@ -508,12 +508,10 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   let curSid = "";
   // returns "" when the number is a valid x0xxx 학번, otherwise what is wrong with it
   function sidProblem(v){
-    if (!/^\d{5}$/.test(v)) return "학년·반·번호 5자리 (예: 10312)";
-    if (!/^[1-3]/.test(v)) return "학년은 1~3이에요 (예: 10312)";
-    if (v[1] !== "0") return "학번은 x0xxx 형식이에요 (예: 10312)";
-    if (v[2] === "0") return "반은 1~9반이에요 (예: 10312)";
-    const n = +v.slice(3); if (n < 1 || n > 40) return "번호는 01~40이에요 (예: 10312)";
-    return "";
+    // students: 학년 1–3, 0, 반 1–8, 번호 01–40  ·  teachers: 0 then 4 digits (not 00000)
+    if (/^0\d{4}$/.test(v) && v !== "00000") return "";
+    if (/^[1-3]0[1-8](0[1-9]|[1-3]\d|40)$/.test(v)) return "";
+    return "학번을 확인해 주세요";
   }
 
   let history = load("gacha2.history", []).map(h => OLD[h.g] ? {...h, g:OLD[h.g], name:LABEL[OLD[h.g]]} : h);
@@ -757,13 +755,21 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     setTimeout(() => box.remove(), 4500);
   }
 
-  function spin(){
-    if (spinning) return;
+  let checking = false;
+  async function spin(fresh){
+    if (spinning || checking) return;
     if (!pool().length) return;
     const id = sidIn.value.trim();
     const bad = sidProblem(id);
     if (bad){ sidSay(bad, "bad", true); sidIn.focus(); return; }
     if (isUsed(id)){ sidSay("이미 참여한 학번이에요", "bad", true); sidIn.select(); return; }
+    // during a festival, look at the other booth devices' newest records first (gives up after 2s)
+    if (fresh !== true && FEST.active && REPO && devKey()){
+      checking = true; pullBtn.disabled = true; lever.disabled = true; sidSay("확인 중…", "");
+      await Promise.race([pullUsed(), new Promise(r => setTimeout(r, 2000))]);
+      checking = false; pullBtn.disabled = false; lever.disabled = false;
+      return spin(true);
+    }
     curSid = id; sidIn.disabled = true; sidIn.blur();
     sidSay(id + " 뽑는 중…", "ok");
     spinning = true; pullBtn.disabled = true; lever.disabled = true;
@@ -859,7 +865,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     document.body.classList.remove("spinning-body");
     report(res, faces);
     sidIn.value = ""; sidIn.disabled = false; curSid = "";
-    setTimeout(() => sidSay("다음 학번을 입력하세요 (예: 10312)", ""), 1200);
+    setTimeout(() => sidSay("다음 학번을 입력하세요", ""), 1200);
 
     spinning = false; pullBtn.disabled = false; lever.disabled = false;
     main.classList.remove("spinning");
@@ -896,12 +902,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   function sidCheck(){
     if (spinning) return;
     const v = sidIn.value;
-    if (v.length < 5){
-      // flag a wrong 학년 or a missing 0 as soon as it is typed
-      const early = (v.length >= 1 && !/^[1-3]/.test(v)) || (v.length >= 2 && v[1] !== "0") || (v.length >= 3 && v[2] === "0");
-      return early ? sidSay(sidProblem(v.padEnd(5, "1")), "bad") : sidSay("학년·반·번호 5자리 (예: 10312)", "");
-    }
-    const bad = sidProblem(v); if (bad) return sidSay(bad, "bad");
+    if (v.length < 5) return sidSay("학번 5자리를 입력하세요", "");
+    if (sidProblem(v)) return sidSay("", "");          // no hint while typing; checked on pull
     if (isUsed(v)) return sidSay("이미 참여한 학번이에요", "bad");
     sidSay(FEST.active ? "레버를 당기거나 버튼을 누르세요!" : "연습 모드예요 · 기록되지 않아요", "ok");
   }
