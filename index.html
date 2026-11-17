@@ -162,6 +162,7 @@ main.land .pull{grid-column:2;grid-row:2 / 4;align-self:center;justify-self:cent
 .sid .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--display);font-size:15px;color:var(--paper);margin-bottom:6px}
 .ftag{font-family:var(--body);font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:#2A2C31;color:var(--muted);white-space:nowrap}
 .ftag.live{background:var(--gold);color:#1A1406}
+.ftag.dev{background:#4DABF7;color:#06121C}
 .ftag.live::before{content:"";display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:50%;background:var(--red);vertical-align:1px;animation:blinkall 1s steps(1) infinite}
 .sid input{display:block;width:100%;font-family:var(--arcade);font-size:30px;letter-spacing:.45em;text-align:center;padding:6px 0 6px .45em;
   border:2px solid var(--steel-hi);border-radius:8px;background:#141416;color:var(--gold);caret-color:var(--gold)}
@@ -285,7 +286,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     <div class="result" id="result" aria-live="polite" hidden></div>
     <div class="sid" id="sidBox">
       <label class="lab" for="sid">학번 <span class="ftag" id="festTag">연습 모드 · 기록 안 됨</span></label>
-      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="00000" aria-describedby="sidMsg">
+      <input id="sid" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="00000" aria-describedby="sidMsg">
       <p class="sidmsg" id="sidMsg" aria-live="polite">학번 5자리를 입력하세요</p>
     </div>
     <button class="pull" id="pull" aria-label="돌리기"></button>
@@ -403,7 +404,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   })();
   let playLog = load("jackpot.log", []), dirty = load("jackpot.dirty", false), fileSha = null, syncing = false;
   function report(res, faces){
-    if (!FEST.active) return;                       // practice mode: nothing is recorded
+    if (!FEST.active || devMode) return;            // practice / developer mode: nothing is recorded
     playLog.push({ fv: FEST.id, t: Date.now(), r: res.g, f: faces.join(""), p: res.g === "W" ? res.name : "", s: curSid });
     save("jackpot.log", playLog); dirty = true; save("jackpot.dirty", true);
     scheduleSync();
@@ -468,10 +469,12 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   // festival on/off is set from the admin page (records branch, festival.json). The last state seen is
   // remembered so a reload without internet still knows whether a festival is running.
   let FEST = load("jackpot.fest", { active: false });
+  let devMode = false;                               // turned on by the developer password (see isDevPw)
   function showFest(){
     const t = document.getElementById("festTag"); if (!t) return;
-    t.classList.toggle("live", !!FEST.active);
-    t.textContent = FEST.active ? "축제 기록 중" : "연습 모드 · 기록 안 됨";
+    t.classList.toggle("live", !!FEST.active && !devMode);
+    t.classList.toggle("dev", devMode);
+    t.textContent = devMode ? "개발자 모드 · 기록 안 됨" : FEST.active ? "축제 기록 중" : "연습 모드 · 기록 안 됨";
     t.title = FEST.active ? (FEST.name || "") : "관리자 페이지에서 축제 기록을 시작하면 기록돼요";
   }
   showFest();
@@ -756,10 +759,35 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   }
 
   let checking = false;
+  // ---- developer password: typed into the 학번 box (8 digits) it turns developer mode on or off for
+  // this screen until reload. Only a salted PBKDF2 hash is stored here, never the password itself.
+  const DEV = { salt: "xP1EoD5xqfmDFVoyeJwCCg==", hash: "wDKYoso6cy5UocMwToC3b+Smo+9ghyaJOFJPR/DClHA=", iter: 120000 };
+  async function isDevPw(v){
+    try {
+      const raw = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(v), "PBKDF2", false, ["deriveBits"]);
+      const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: raw(DEV.salt), iterations: DEV.iter, hash: "SHA-256" }, base, 256));
+      const want = raw(DEV.hash); let diff = 0; for (let i = 0; i < 32; i++) diff |= bits[i] ^ want[i];
+      return diff === 0;
+    } catch(e){ return false; }
+  }
   async function spin(fresh){
     if (spinning || checking) return;
     if (!pool().length) return;
     const id = sidIn.value.trim();
+    if (id.length === 8){
+      checking = true;
+      const ok = await isDevPw(id);
+      checking = false; sidIn.value = "";
+      if (!ok){ sidSay("학번을 확인해 주세요", "bad", true); return; }
+      devMode = !devMode; showFest();
+      sidSay(devMode ? "개발자 모드 켜짐 · 학번 없이 계속 돌릴 수 있어요" : "개발자 모드 꺼짐", "ok");
+      return;
+    }
+    if (devMode){                                    // developer mode: no 학번 rules, no limits, no records
+      curSid = ""; sidIn.disabled = true; sidIn.blur(); sidSay("개발자 모드 · 돌리는 중…", "ok");
+      return go();
+    }
     const bad = sidProblem(id);
     if (bad){ sidSay(bad, "bad", true); sidIn.focus(); return; }
     if (isUsed(id)){ sidSay("이미 참여한 학번이에요", "bad", true); sidIn.select(); return; }
@@ -772,6 +800,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     }
     curSid = id; sidIn.disabled = true; sidIn.blur();
     sidSay(id + " 뽑는 중…", "ok");
+    go();
+  }
+  function go(){
     spinning = true; pullBtn.disabled = true; lever.disabled = true;
     lever.classList.add("pulled"); sfx.lever(); buzz(25);
     setTimeout(() => lever.classList.remove("pulled"), 380);
@@ -865,7 +896,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     document.body.classList.remove("spinning-body");
     report(res, faces);
     sidIn.value = ""; sidIn.disabled = false; curSid = "";
-    setTimeout(() => sidSay("다음 학번을 입력하세요", ""), 1200);
+    setTimeout(() => devMode ? sidSay("개발자 모드 · 학번 없이 계속 돌릴 수 있어요", "ok") : sidSay("다음 학번을 입력하세요", ""), 1200);
 
     spinning = false; pullBtn.disabled = false; lever.disabled = false;
     main.classList.remove("spinning");
@@ -902,13 +933,15 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   function sidCheck(){
     if (spinning) return;
     const v = sidIn.value;
+    if (devMode && !v) return sidSay("개발자 모드 · 학번 없이 계속 돌릴 수 있어요", "ok");
+    if (v.length > 5) return sidSay("", "");
     if (v.length < 5) return sidSay("학번 5자리를 입력하세요", "");
     if (sidProblem(v)) return sidSay("", "");          // no hint while typing; checked on pull
     if (isUsed(v)) return sidSay("이미 참여한 학번이에요", "bad");
     sidSay(FEST.active ? "레버를 당기거나 버튼을 누르세요!" : "연습 모드예요 · 기록되지 않아요", "ok");
   }
   sidIn.addEventListener("input", () => {
-    const clean = sidIn.value.replace(/\D/g, "").slice(0, 5);
+    const clean = sidIn.value.replace(/\D/g, "").slice(0, 8);
     if (clean !== sidIn.value) sidIn.value = clean;
     sidCheck();
   });
