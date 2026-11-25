@@ -2762,8 +2762,12 @@ var qrcode = function() {
     festBusy = false;
     if (r.ok){ fest = next; festSha = r.data.content.sha; for (const k in etagCache) if (k.includes("festival.json")) delete etagCache[k]; }
     drawFest(); drawStats(); drawLog();
+    lastFestErr = r.ok ? "" : (r.status === 401 ? "토큰이 만료됐거나 지워졌어요. 새 토큰으로 다시 연결해 주세요."
+      : r.status === 403 || r.status === 404 ? "토큰에 저장 권한이 없어요. 토큰의 Contents 권한을 'Read and write'로 바꿔 주세요."
+      : "저장하지 못했어요. 잠시 후 다시 시도해 주세요. (" + r.status + ")");
     return r.ok;
   }
+  let lastFestErr = "";
   $("festBtn").onclick = async () => {
     const st = $("festStatus");
     if (fest.active){
@@ -2772,7 +2776,7 @@ var qrcode = function() {
       const next = JSON.parse(JSON.stringify(fest));
       next.active = false; const c = next.list.find(f => f.id === next.id); if (c) c.end = Date.now();
       setStatus(st, "끝내는 중…");
-      (await writeFest(next, "End festival")) ? setStatus(st, "축제 기록을 끝냈어요. 게임 기기에는 15초 안에 반영돼요.", "ok") : setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+      (await writeFest(next, "End festival")) ? setStatus(st, "축제 기록을 끝냈어요. 게임 기기에는 15초 안에 반영돼요.", "ok") : setStatus(st, lastFestErr, "err");
     } else {
       const d = new Date();
       const name = $("festName").value.trim() || `${d.getMonth() + 1}월 ${d.getDate()}일 축제`;
@@ -2782,7 +2786,7 @@ var qrcode = function() {
       if (await writeFest(next, "Start festival: " + name)){
         viewFest = id; $("festName").value = ""; drawFest(); drawStats(); drawLog();
         setStatus(st, "축제 기록을 시작했어요. 게임 기기에는 15초 안에 '축제 기록 중'으로 바뀌어요.", "ok");
-      } else setStatus(st, "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+      } else setStatus(st, lastFestErr, "err");
     }
   };
 
