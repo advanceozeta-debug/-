@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>잭팟 머신</title>
+<title>룰렛</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Bungee&family=IBM+Plex+Sans+KR:wght@400;600&display=swap" rel="stylesheet">
@@ -71,7 +71,23 @@ main{position:absolute;z-index:1;left:50%;top:0;width:440px;padding:14px 16px 18
 .cabinet::before,.cabinet::after{content:"";position:absolute;top:18px;bottom:22px;width:4px;border-radius:2px;background:linear-gradient(var(--red),var(--red-dk));
   box-shadow:0 0 10px rgba(225,36,44,.6)}
 .cabinet::before{left:4px}.cabinet::after{right:4px}
-.deck{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:stretch}
+.deck{display:grid;grid-template-columns:1fr;align-items:stretch}
+/* ---------- roulette wheel ---------- */
+.wheelWrap{position:relative;width:100%;aspect-ratio:1;padding:6px}
+.wheelWrap svg{display:block;width:100%;height:100%;overflow:visible}
+#wheel{transform-box:fill-box;transform-origin:center;will-change:transform}
+.wheelWrap .seg-t{font-family:var(--display);font-size:21px;letter-spacing:.04em;paint-order:stroke fill;stroke:#0B0B0D;stroke-width:3px;stroke-linejoin:round}
+.wheelWrap .rimbulb{fill:#FFE7A8;opacity:.25;animation:chase 2.4s steps(1) infinite}
+.wheelWrap .rimbulb:nth-of-type(3n+2){animation-delay:.8s}.wheelWrap .rimbulb:nth-of-type(3n){animation-delay:1.6s}
+.spinning .wheelWrap .rimbulb{animation-duration:.6s}
+.won .wheelWrap .rimbulb{animation:blinkall .3s steps(1) infinite}
+/* pointer at the top: flicks each time a peg passes under it */
+.wheelWrap svg.pointer{position:absolute;left:50%;top:-4px;width:44px;height:58px;margin-left:-22px;z-index:3;transform-origin:50% 14px;pointer-events:none;filter:drop-shadow(0 4px 0 #0B0B0D)}
+.wheelWrap svg.pointer.flick{animation:flick .12s ease-out}
+@keyframes flick{40%{transform:rotate(-14deg)}}
+.wheelWrap .hubtxt{font-family:var(--arcade);font-size:22px;fill:var(--paper);paint-order:stroke fill;stroke:#0B0B0D;stroke-width:4px}
+.won .winseg{animation:segglow .35s steps(1) infinite}
+@keyframes segglow{50%{fill:#FFF3C4}}
 .reels{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:6px;border-radius:10px;
   background:linear-gradient(180deg,#D7DBE0,#8A9099 45%,#CDD1D6);box-shadow:inset 0 0 0 2px #0B0B0D,0 0 0 1px #5B5F67}
 .reel{position:relative;height:calc(var(--H) * 3);overflow:hidden;border-radius:4px;
@@ -105,8 +121,8 @@ main{position:absolute;z-index:1;left:50%;top:0;width:440px;padding:14px 16px 18
 /* wide screens: controls move beside the reels so the whole machine can grow */
 main.land{width:680px}
 main.land .marquee{margin:0 60px}
-main.land .cabinet{display:grid;grid-template-columns:440px 1fr;grid-template-rows:auto auto 1fr;column-gap:18px;align-items:start}
-main.land .deck{grid-column:1;grid-row:1 / 4}
+main.land .cabinet{display:grid;grid-template-columns:420px 1fr;grid-template-rows:auto auto 1fr;column-gap:18px;align-items:start}
+main.land .deck{grid-column:1;grid-row:1 / 4;align-self:center}
 main.land .pt{grid-column:2;grid-row:1;grid-template-columns:repeat(4,1fr);margin:0}
 main.land .result{display:none}
 main.land .sid{grid-column:2;grid-row:1;margin:0}
@@ -276,13 +292,10 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
   <div class="cabinet" id="cab">
     <div class="deck">
-      <div class="reels" aria-hidden="true">
-        <div class="reel"><div class="strip"></div></div>
-        <div class="reel"><div class="strip"></div></div>
-        <div class="reel"><div class="strip"></div></div>
-        <div class="payline"></div>
+      <div class="wheelWrap" aria-hidden="true">
+        <svg class="pointer" id="pointer" viewBox="0 0 44 58"><path d="M22 56 L4 14 A18 18 0 0 1 40 14 Z" fill="#E1242C" stroke="#0B0B0D" stroke-width="3"/><circle cx="22" cy="16" r="6" fill="#F2F3F5" stroke="#0B0B0D" stroke-width="2"/></svg>
+        <svg viewBox="-200 -200 400 400" id="wheelSvg"></svg>
       </div>
-      <button class="lever" id="lever" aria-label="레버 당기기"><span class="slot"></span><span class="stick"><span class="knob"></span></span></button>
     </div>
     <div class="result" id="result" aria-live="polite" hidden></div>
     <div class="sid" id="sidBox">
@@ -319,8 +332,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     {id:"L", rate:87, items:["꽝"]},
     {id:"W", rate:3,  items:["당첨"]}
   ];
-  const NUMS = ["1","2","3","4","5","6","7"];      // each reel holds 1–7, once each
-  const N = NUMS.length;
+  // the wheel: 10 slots clockwise from the top, two of them 당첨 (opposite each other)
+  const SEGS = ["W","L","L","L","L","W","L","L","L","L"];
+  const N = SEGS.length, SA = 360 / N;
   const RANK = {L:0,W:1};
   const LABEL = {L:"꽝",W:"당첨"};
   const OLD = {LS:"L", WS:"W"};                      // older saves had 빛나는 grades; fold them in
@@ -480,7 +494,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   }
   showFest();
   const usedRemote = new Set(), fileCache = {};      // file name -> {sha, rows:[{s,fv}]}
-  const usedHere = () => new Set(playLog.filter(x => x.fv === FEST.id).map(x => x.s).filter(Boolean));
+  // a play counts unless the admin reset that number after it (festival.json "reset": {number: time})
+  const counts = x => x.s && x.fv === FEST.id && !((FEST.reset || {})[x.s] >= x.t);
+  const usedHere = () => new Set(playLog.filter(counts).map(x => x.s));
   const isUsed = id => FEST.active && (usedHere().has(id) || usedRemote.has(id));
   const decodeB64 = c => new TextDecoder().decode(Uint8Array.from(atob(c.replace(/\s/g, "")), ch => ch.charCodeAt(0)));
   async function pullUsed(){
@@ -489,7 +505,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
       const fs = await gh("GET", "/contents/festival.json?ref=records");
       if (fs.ok && fs.data && fs.data.content){
         const f = JSON.parse(decodeB64(fs.data.content));
-        FEST = f && f.active && f.id ? { active: true, id: f.id, name: f.name || "" } : { active: false };
+        FEST = f && f.active && f.id ? { active: true, id: f.id, name: f.name || "", reset: f.reset || {} } : { active: false };
       } else if (fs.status === 404) FEST = { active: false };
       save("jackpot.fest", FEST); showFest();
       const list = await gh("GET", "/contents/logs?ref=records");
@@ -500,10 +516,10 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         const g = await gh("GET", "/contents/logs/" + encodeURIComponent(f.name) + "?ref=records");
         if (!g.ok || !g.data || !g.data.content) continue;
         const rows = (JSON.parse(decodeB64(g.data.content)).rows || []);
-        fileCache[f.name] = { sha: f.sha, rows: rows.filter(x => x.s).map(x => ({ s: x.s, fv: x.fv })) };
+        fileCache[f.name] = { sha: f.sha, rows: rows.filter(x => x.s).map(x => ({ s: x.s, fv: x.fv, t: x.t })) };
       }
       usedRemote.clear();
-      Object.values(fileCache).forEach(c => c.rows.forEach(x => { if (x.fv && x.fv === FEST.id) usedRemote.add(x.s); }));
+      Object.values(fileCache).forEach(c => c.rows.forEach(x => { if (counts(x)) usedRemote.add(x.s); }));
       sidCheck();
     } catch(e){}
   }
@@ -524,17 +540,11 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   let spinning = false;
 
   const $ = id => document.getElementById(id);
-  const main = $("main"), cab = $("cab"), result = $("result"), pullBtn = $("pull"), lever = $("lever");
-  const reels = [...document.querySelectorAll(".reel")];
-  const strips = reels.map(r => r.querySelector(".strip"));
-  const H = () => reels[0].offsetHeight / 3;
+  const main = $("main"), cab = $("cab"), result = $("result"), pullBtn = $("pull");
 
   const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const badge = g => `<span class="badge ${g}" style="--g:var(--${g})">${LABEL[g]}</span>`;
-  // character cards are switched off for now; flip to true to bring them back
-  const USE_CARDS = false;
-  if (!USE_CARDS) document.documentElement.classList.add("nums");
-  const symHTML = n => USE_CARDS ? `<div class="sym n${n}"></div>` : `<div class="sym n${n}"><span class="glyph">${n}</span></div>`;
+  document.documentElement.classList.add("nums");
   const show = (g, name) => name === LABEL[g] ? LABEL[g] : `${LABEL[g]} ${name}`;
   const pick = a => a[Math.floor(Math.random()*a.length)];
   const pool = () => grades.filter(g => g.items.length && g.rate > 0);
@@ -546,21 +556,44 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     const g = p[p.length-1]; return {g:g.id, name:g.items[0]};
   }
 
-  // three of the same number = 당첨 (777 = 빛나는 당첨); anything else = 꽝
-  function facesFor(g){
-    if (g === "W"){ const n = pick(NUMS); return [n,n,n]; }
-    if (Math.random() < 0.35){                      // near miss: first two match, third doesn't
-      const n = pick(NUMS); return [n, n, pick(NUMS.filter(x => x !== n))];
-    }
-    let f; do { f = [pick(NUMS),pick(NUMS),pick(NUMS)]; } while (f[0]===f[1] && f[1]===f[2]);
-    return f;
-  }
-
-  function idle(){
-    strips.forEach((s,k) => {
-      let html = ""; for (let i=0;i<3;i++) html += symHTML(NUMS[(i + k*2 + N - 1) % N]);
-      s.style.transition = "none"; s.style.transform = "translateY(0)"; s.innerHTML = html;
+  // ---- draw the wheel once: slices, labels, pegs on the rim, a ring of bulbs and the hub
+  const wheelSvg = $("wheelSvg");
+  const pt = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [r * Math.cos(a), r * Math.sin(a)]; };
+  (function drawWheel(){
+    const R = 172, ns = "http://www.w3.org/2000/svg";
+    let out = `<circle r="196" fill="#202227" stroke="#0B0B0D" stroke-width="4"/>
+      <circle r="190" fill="none" stroke="#45484F" stroke-width="2"/>`;
+    for (let i = 0; i < 24; i++){ const [x, y] = pt(184, i * 15 + 7.5); out += `<circle class="rimbulb" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5"/>`; }
+    out += `<g id="wheel">`;
+    let lose = 0;
+    SEGS.forEach((g, i) => {
+      const [x1, y1] = pt(R, i * SA), [x2, y2] = pt(R, (i + 1) * SA);
+      const fill = g === "W" ? "#F2C14E" : (lose++ % 2 ? "#E1242C" : "#1B1B1F");
+      out += `<path class="${g === "W" ? "winseg" : ""}" data-i="${i}" d="M0 0 L${x1.toFixed(2)} ${y1.toFixed(2)} A${R} ${R} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${fill}" stroke="#0B0B0D" stroke-width="3"/>`;
+      const mid = (i + .5) * SA, [tx, ty] = pt(R * .68, mid);
+      out += `<text class="seg-t" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${g === "W" ? "#1A1406" : "#EFEBE2"}" stroke="${g === "W" ? "none" : "#0B0B0D"}" text-anchor="middle" dominant-baseline="central" transform="rotate(${mid > 90 && mid < 270 ? mid + 180 : mid} ${tx.toFixed(1)} ${ty.toFixed(1)})">${g === "W" ? "당첨" : "꽝"}</text>`;
     });
+    for (let i = 0; i < N; i++){ const [x, y] = pt(R - 4, i * SA); out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#C9CDD3" stroke="#0B0B0D" stroke-width="2"/>`; }
+    out += `<circle r="${R}" fill="none" stroke="#0B0B0D" stroke-width="5"/>
+      <circle r="40" fill="#2C2E33" stroke="#0B0B0D" stroke-width="4"/>
+      <circle r="31" fill="#C9CDD3" stroke="#0B0B0D" stroke-width="3"/>
+      <circle r="12" fill="#E1242C" stroke="#0B0B0D" stroke-width="3"/></g>`;
+    wheelSvg.innerHTML = out;
+  })();
+  const wheelG = $("wheel"), pointer = $("pointer");
+  let rot = 0;                                       // current wheel angle in degrees (clockwise)
+  wheelG.style.transform = "rotate(0deg)";
+  const slotAt = deg => Math.floor((((-deg) % 360) + 360) % 360 / SA);   // slot under the pointer
+
+  // where the wheel stops: a slot of the result's kind; for 꽝, sometimes just past a 당첨 slot
+  function landing(g){
+    const idx = SEGS.map((x, i) => x === g ? i : -1).filter(i => i >= 0);
+    if (g === "L" && Math.random() < .35){
+      const w = pick(SEGS.map((x, i) => x === "W" ? i : -1).filter(i => i >= 0));
+      const after = Math.random() < .5;
+      return { i: (w + (after ? 1 : N - 1)) % N, u: after ? .05 + Math.random() * .1 : .85 + Math.random() * .1, near: true };
+    }
+    return { i: pick(idx), u: .2 + Math.random() * .6, near: false };
   }
 
   // sound: soft clicks, a low thunk per reel, bell-like chimes for wins
@@ -794,9 +827,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     if (isUsed(id)){ sidSay("이미 참여한 학번이에요", "bad", true); sidIn.select(); return; }
     // during a festival, look at the other booth devices' newest records first (gives up after 2s)
     if (fresh !== true && FEST.active && REPO && devKey()){
-      checking = true; pullBtn.disabled = true; lever.disabled = true; sidSay("확인 중…", "");
+      checking = true; pullBtn.disabled = true; sidSay("확인 중…", "");
       await Promise.race([pullUsed(), new Promise(r => setTimeout(r, 2000))]);
-      checking = false; pullBtn.disabled = false; lever.disabled = false;
+      checking = false; pullBtn.disabled = false;
       return spin(true);
     }
     curSid = id; sidIn.disabled = true; sidIn.blur();
@@ -804,72 +837,54 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     go();
   }
   function go(){
-    spinning = true; pullBtn.disabled = true; lever.disabled = true;
-    lever.classList.add("pulled"); sfx.lever(); buzz(25);
-    setTimeout(() => lever.classList.remove("pulled"), 380);
+    spinning = true; pullBtn.disabled = true;
+    sfx.lever(); buzz(25);
     cab.className = "cabinet"; main.classList.add("spinning"); main.classList.remove("won");
     document.body.classList.add("spinning-body"); result.classList.remove("won-result");
     result.innerHTML = "";
+    wheelSvg.querySelectorAll(".winseg").forEach(p => p.classList.remove("winseg-on"));
     hideFever(); setMood("spin", pick(SPIN_LINES));
 
     const res = roll();
-    const faces = facesFor(res.g);
+    const land = landing(res.g);
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const suspense = !reduce && faces[0] === faces[1];
-    const h = H();
-    const last = [0,0,0];
+    const target = (land.i + land.u) * SA;            // wheel angle that must end under the pointer
+    const turns = reduce ? 1 : 4 + (land.near ? 1 : 0);
+    const delta = ((((-target) - rot) % 360) + 360) % 360;
+    const end = rot + turns * 360 + delta;
+    const dur = reduce ? 600 : land.near ? 2900 : 2100;
+    // wind-up: a small kick backwards, then off it goes
+    const WIND = reduce ? 0 : 110;
+    if (WIND){ wheelG.style.transition = `transform ${WIND}ms ease-out`; wheelG.style.transform = `rotate(${rot - 8}deg)`; }
+    setTimeout(() => {
+      wheelG.style.transition = `transform ${dur}ms ${land.near ? "cubic-bezier(.12,.62,.08,1)" : "cubic-bezier(.15,.55,.1,1)"}`;
+      wheelG.style.transform = `rotate(${end}deg)`;
+    }, WIND);
+    rot = end;
+    if (land.near) setTimeout(() => { cab.classList.add("suspense"); setMood("spin", "어?! 당첨 근처야!!"); }, WIND + dur * .55);
 
-    strips.forEach((s, k) => {
-      const extra = (k === 2 && suspense);
-      const count = reduce ? 4 + k : 10 + k*4 + (extra ? 6 : 0);
-      const dur = reduce ? 300 + k*150 : 800 + k*300 + (extra ? 700 : 0);
-      const at = NUMS.indexOf(faces[k]);
-      const start = ((at - count) % N + N) % N;
-      let html = "";
-      for (let i=0;i<=count+1;i++) html += symHTML(NUMS[(start + i) % N]);
-      reels[k].classList.remove("stopped");
-      s.style.transition = "none"; s.style.transform = "translateY(0)"; s.innerHTML = html;
-      void s.offsetHeight;
-      const target = -(count - 1) * h, over = reduce ? 0 : Math.round(h * .16);
-      const WIND = reduce ? 0 : 90;
-      // wind-up: reel kicks back a little before it takes off
-      if (WIND){ s.style.transition = `transform ${WIND}ms ease-out`; s.style.transform = `translateY(${Math.round(h*.22)}px)`; }
-      setTimeout(() => {
-        s.style.transition = `transform ${dur}ms cubic-bezier(.25,.05,.2,1)`;
-        s.style.transform = `translateY(${target - over}px)`;      // run slightly past the number…
-      }, WIND);
-
-      setTimeout(() => {
-        // …then snap back onto it with a bounce
-        s.style.transition = "transform 220ms cubic-bezier(.3,1.8,.5,1)";
-        s.style.transform = `translateY(${target}px)`;
-        cab.classList.remove("knock"); void cab.offsetWidth; cab.classList.add("knock");
-        buzz(k === 2 ? 35 : 20);
-        reels[k].classList.add("stopped"); sfx.stop(k);
-        ringGap += 25;
-        if (k === 2) ringStop();
-        if (k === 1 && suspense){
-          cab.classList.add("suspense");
-          setMood("spin", "어?! 두 개 맞았어!!");
-        }
-        if (k === 2) setTimeout(() => finish(res, faces), 80);
-      }, WIND + dur);
-    });
-
-    // tick as symbols pass
-    let lastT = 0; const lastFlip = [0,0,0];
+    // tick each time a peg passes the pointer
+    let lastSlot = null, lastT = 0;
     const loop = (t) => {
       if (!spinning) return;
-      strips.forEach((s,k) => {
-        const m = new DOMMatrixReadOnly(getComputedStyle(s).transform);
-        const row = Math.floor(-m.m42 / h);
-        if (row !== last[k]){ last[k] = row; if (t - lastFlip[k] > 28){ lastFlip[k] = t; sfx.flip(k); } }
-      });
+      const m = new DOMMatrixReadOnly(getComputedStyle(wheelG).transform);
+      const deg = Math.atan2(m.b, m.a) * 180 / Math.PI;
+      const sl = slotAt(deg);
+      if (lastSlot !== null && sl !== lastSlot && t - lastT > 30){
+        lastT = t; sfx.flip(0);
+        pointer.classList.remove("flick"); void pointer.getBBox(); pointer.classList.add("flick");
+      }
+      lastSlot = sl;
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
-  }
 
+    setTimeout(() => {
+      cab.classList.remove("knock"); void cab.offsetWidth; cab.classList.add("knock");
+      sfx.stop(2); buzz(35);
+      setTimeout(() => finish(res, [String(land.i + 1)]), 80);
+    }, WIND + dur);
+  }
 
   const charEl = $("char"), bubble = $("bubble"), fever = $("fever");
   function setMood(m, text){
@@ -882,8 +897,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   const SPIN_LINES = ["가라가라~!", "제발제발…!", "이번엔 느낌 와!"];
   let feverTimer = 0;
   function showFever(res, faces){
-    $("fchar").className = "fchar sym n" + faces[0];        // the winning card (or number), big
-    $("fchar").innerHTML = USE_CARDS ? "" : `<span class="glyph">${faces[0]}</span>`;
+    $("fchar").className = "fchar";
+    $("fchar").innerHTML = `<span class="glyph" style="font-family:var(--display);font-size:calc(var(--fw) * .36);color:var(--gold)">당첨!</span>`;
     $("fsub").textContent = res.name === LABEL[res.g] ? "" : res.name;
     fever.hidden = false;
     clearTimeout(feverTimer); feverTimer = setTimeout(hideFever, 3600);
@@ -899,7 +914,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     sidIn.value = ""; sidIn.disabled = false; curSid = "";
     setTimeout(() => devMode ? sidSay("개발자 모드 · 학번 없이 계속 돌릴 수 있어요", "ok") : sidSay("다음 학번을 입력하세요", ""), 1200);
 
-    spinning = false; pullBtn.disabled = false; lever.disabled = false;
+    spinning = false; pullBtn.disabled = false;
     main.classList.remove("spinning");
     cab.className = "cabinet" + (res.g === "W" ? " win-W" : "");
     if (res.g === "W"){
@@ -912,8 +927,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     const msg = {L:"꽝 · 다음 기회에", W:"당첨! 축하해요"}[res.g];
     if (res.g === "L") setMood("lose", pick(LOSE_LINES));
     const prize = res.name === LABEL[res.g] ? "" : " · " + esc(res.name);
-    result.innerHTML = `<div class="big pop">${faces.join(" ")}</div>`;
+    result.innerHTML = `<div class="big pop">${res.g === "W" ? "당첨!" : "꽝"}</div>`;
     if (res.g === "W"){ sfx.jackpot(); coinRain(50); }
+    else if (res.g === "L") sfx.lose();
     total++; history.unshift({g:res.g, name:res.name, n:total});
     history = history.slice(0, 30);
     save("gacha2.history", history); save("gacha2.total", total);
@@ -939,7 +955,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     if (v.length < 5) return sidSay("학번 5자리를 입력하세요", "");
     if (sidProblem(v)) return sidSay("", "");          // no hint while typing; checked on pull
     if (isUsed(v)) return sidSay("이미 참여한 학번이에요", "bad");
-    sidSay(FEST.active ? "레버를 당기거나 버튼을 누르세요!" : "연습 모드예요 · 기록되지 않아요", "ok");
+    sidSay(FEST.active ? "버튼을 눌러 룰렛을 돌리세요!" : "연습 모드예요 · 기록되지 않아요", "ok");
   }
   sidIn.addEventListener("input", () => {
     const clean = sidIn.value.replace(/\D/g, "").slice(0, 8);
@@ -949,37 +965,6 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   sidIn.addEventListener("keydown", e => { if (e.key === "Enter") spin(); });
   sidIn.addEventListener("blur", () => setTimeout(fit, 300));
   pullBtn.onclick = spin;
-  // drag the lever down yourself: ratchets as it goes, fires past 70%, springs back if you let go early
-  const stick = lever.querySelector(".stick");
-  let drag = null, dragged = false;
-  lever.addEventListener("pointerdown", e => {
-    if (spinning) return;
-    drag = {y:e.clientY, span:lever.offsetHeight * .6, p:0, notch:0}; dragged = false;
-    try { lever.setPointerCapture(e.pointerId); } catch(_){}
-    lever.classList.add("dragging");
-  });
-  lever.addEventListener("pointermove", e => {
-    if (!drag) return;
-    const p = Math.max(0, Math.min(1, (e.clientY - drag.y) / drag.span));
-    if (p > .04) dragged = true;
-    drag.p = p;
-    stick.style.transform = `scaleY(${1 - 2*p})`;
-    const notch = Math.floor(p * 6);
-    if (notch > drag.notch){ sfx.ratchet(); buzz(8); }
-    drag.notch = notch;
-  });
-  function endDrag(){
-    if (!drag) return;
-    const p = drag.p; drag = null;
-    lever.classList.remove("dragging");
-    stick.style.transform = "";
-    if (p > .7) spin();
-    else if (dragged) sfx.spring();
-  }
-  lever.addEventListener("pointerup", endDrag);
-  lever.addEventListener("pointercancel", endDrag);
-  lever.addEventListener("click", () => { if (dragged){ dragged = false; return; } spin(); });
-
   // scale the whole machine to the largest size that fits the screen, centred
   function fit(){
     if (document.activeElement && document.activeElement.id === "sid") return;
@@ -1000,7 +985,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   if (window.visualViewport) visualViewport.addEventListener("resize", fit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   fit();
-  syncSound(); renderStats(); idle(); setMood("idle", "레버 당겨봐!");
+  syncSound(); renderStats(); setMood("idle", "돌려봐!");
 })();
 </script>
 </body>

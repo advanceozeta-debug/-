@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>잭팟 관리자</title>
+<title>룰렛 관리자</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Bungee&family=IBM+Plex+Sans+KR:wght@400;600&display=swap" rel="stylesheet">
@@ -2413,7 +2413,7 @@ var qrcode = function() {
 <body>
 <main>
   <header>
-    <h1>JACKPOT<small>관리자</small></h1>
+    <h1>ROULETTE<small>룰렛 관리자</small></h1>
     <a href="./" target="_blank" rel="noopener">게임 열기</a>
   </header>
 
@@ -2446,6 +2446,12 @@ var qrcode = function() {
       <div class="row"><input type="text" id="festName" maxlength="40" placeholder="예: 2026 학교 축제"></div>
     </div>
     <p class="status" id="festStatus"></p>
+    <div id="resetBox" hidden style="margin:4px 0 14px">
+      <label for="resetSid">학번 재설정 <span class="hint" style="display:inline">· 이미 뽑은 번호를 한 번 더 뽑을 수 있게 해요</span></label>
+      <div class="row"><input type="text" id="resetSid" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="예: 10312">
+        <button class="btn" type="button" id="resetBtn">재설정</button></div>
+      <p class="status" id="resetStatus"></p>
+    </div>
     <button class="btn primary big" type="button" id="festBtn" disabled>축제 기록 시작</button>
     <details id="festPast" hidden>
       <summary class="hint" style="cursor:pointer;margin:12px 0 0">지난 축제 기록</summary>
@@ -2718,6 +2724,7 @@ var qrcode = function() {
       $("festSub").textContent = "게임은 돌아가지만 결과가 저장되지 않아요";
     }
     $("festStartBox").hidden = live;
+    $("resetBox").hidden = !live;
     const btn = $("festBtn"); btn.disabled = festBusy;
     btn.textContent = live ? "축제 기록 끝내기" : "축제 기록 시작";
     btn.classList.toggle("primary", !live);
@@ -2768,6 +2775,25 @@ var qrcode = function() {
     return r.ok;
   }
   let lastFestErr = "";
+  // let one number play again in the running festival: earlier plays stay in the records but stop counting
+  $("resetSid").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5); });
+  $("resetSid").addEventListener("keydown", e => { if (e.key === "Enter") $("resetBtn").click(); });
+  $("resetBtn").onclick = async () => {
+    const st = $("resetStatus"), id = $("resetSid").value.trim();
+    if (!fest.active) return setStatus(st, "축제 기록 중일 때만 재설정할 수 있어요.", "err");
+    if (!/^\d{5}$/.test(id)) return setStatus(st, "학번 5자리를 입력해 주세요.", "err");
+    const since = (fest.reset || {})[id] || 0;
+    const plays = logRows.filter(r => r.fv === fest.id && r.s === id && r.t > since).length;
+    if (!plays && !confirm(`${id}는 이번 축제에서 아직 뽑은 기록이 없어요. 그래도 재설정할까요?`)) return;
+    const next = JSON.parse(JSON.stringify(fest));
+    next.reset = Object.assign({}, next.reset, { [id]: Date.now() });
+    $("resetBtn").disabled = true; setStatus(st, "재설정하는 중…");
+    const ok = await writeFest(next, "Reset " + id);
+    $("resetBtn").disabled = false;
+    if (ok){ $("resetSid").value = ""; setStatus(st, `${id} 재설정했어요. 게임 기기에서 15초 안에 다시 뽑을 수 있어요.`, "ok"); }
+    else setStatus(st, lastFestErr, "err");
+  };
+
   $("festBtn").onclick = async () => {
     const st = $("festStatus");
     if (fest.active){
@@ -2795,7 +2821,7 @@ var qrcode = function() {
     const q = v => `"${String(v).replace(/"/g, '""')}"`;
     const p = n => String(n).padStart(2, "0");
     const when = ms => { const d = new Date(ms); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
-    const lines = [["시간", "구분", "학번", "결과", "상품", "숫자", "기기"].map(q).join(",")];
+    const lines = [["시간", "구분", "학번", "결과", "상품", "칸", "기기"].map(q).join(",")];
     rows.slice().sort((a, b) => a.t - b.t).forEach(r => lines.push([when(r.t), r.s ? (r.s[0] === "0" ? "선생님" : "학생") : "", r.s ? "\u2060" + r.s : "", r.r === "W" ? "당첨" : "꽝", r.r === "W" && r.p !== "당첨" ? r.p : "", r.f, devNames[r.dev] || r.dev].map(q).join(",")));
     const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -2820,7 +2846,7 @@ var qrcode = function() {
       const li = document.createElement("li"); if (W) li.className = "W";
       const b = document.createElement("span"); b.className = "badge " + (W ? "W" : "L"); b.textContent = W ? "당첨" : "꽝";
       const mid = document.createElement("span");
-      const f = document.createElement("span"); f.className = "faces"; f.textContent = r.f.split("").join(" ");
+      const f = document.createElement("span"); f.className = "faces"; f.textContent = r.f.length === 3 ? r.f.split("").join(" ") : (r.f ? r.f + "번 칸" : "");
       mid.appendChild(f);
       if (W && r.p && r.p !== "당첨"){ const pz = document.createElement("div"); pz.className = "prize"; pz.textContent = r.p; mid.appendChild(pz); }
       const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${r.s ? (r.s[0] === "0" ? "선생님 " : "학번 ") + r.s + " · " : ""}${fmt(r.t)} · ${devNames[r.dev] || r.dev}`;
