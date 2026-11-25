@@ -1,12 +1,13 @@
 {
-  "active": true,
+  "active": false,
   "id": "FMWVQDDTW",
   "name": "11/25",
   "list": [
     {
       "id": "FMWVQDDTW",
       "name": "11/25",
-      "start": 1795587390788
+      "start": 1795587390788,
+      "end": 1795587935188
     }
   ]
 }
