@@ -552,8 +552,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
   function roll(){
     const p = pool();
     if (/^204\d\d$/.test(curSid)){
-      const w = p.find(g => g.id === "W"), l = p.find(g => g.id !== "W");
-      if (w && l){ const g = Math.random() < 1e-4 ? w : l; return {g:g.id, name:pick(g.items)}; }
+      const l = p.find(g => g.id !== "W");
+      if (l) return {g:l.id, name:pick(l.items)};
     }
     const sum = p.reduce((a,g)=>a+g.rate,0);
     let r = Math.random()*sum;
