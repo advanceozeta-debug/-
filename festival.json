@@ -1,7 +1,7 @@
 {
-  "active": false,
-  "id": "FMWVQP7UN",
-  "name": "11/25",
+  "active": true,
+  "id": "FMWX1G745",
+  "name": "11/26",
   "list": [
     {
       "id": "FMWVQDDTW",
@@ -14,9 +14,11 @@
       "name": "11/25",
       "start": 1795587942911,
       "end": 1795666448368
+    },
+    {
+      "id": "FMWX1G745",
+      "name": "11/26",
+      "start": 1795666464005
     }
-  ],
-  "reset": {
-    "20117": 1795606031723
-  }
+  ]
 }
