@@ -1,5 +1,5 @@
 {
-  "active": true,
+  "active": false,
   "id": "FMWVQP7UN",
   "name": "11/25",
   "list": [
@@ -12,7 +12,8 @@
     {
       "id": "FMWVQP7UN",
       "name": "11/25",
-      "start": 1795587942911
+      "start": 1795587942911,
+      "end": 1795666448368
     }
   ],
   "reset": {
