@@ -2,14 +2,14 @@
   "grades": [
     {
       "id": "L",
-      "rate": 98,
+      "rate": 99.1,
       "items": [
         "꽝"
       ]
     },
     {
       "id": "W",
-      "rate": 2,
+      "rate": 0.9,
       "items": [
         "당첨"
       ]
