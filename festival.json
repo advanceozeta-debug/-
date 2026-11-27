@@ -1,5 +1,5 @@
 {
-  "active": true,
+  "active": false,
   "id": "FMWY7J66K",
   "name": "11/27",
   "list": [
@@ -24,7 +24,8 @@
     {
       "id": "FMWY7J66K",
       "name": "11/27",
-      "start": 1795737146636
+      "start": 1795737146636,
+      "end": 1795738267726
     }
   ]
 }
